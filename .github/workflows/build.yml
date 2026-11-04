@@ -88,12 +88,19 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Checksums
+      - name: Collect release files
         run: |
-          cd dist
+          version="${GITHUB_REF_NAME#v}"
+          mkdir release
+          cp dist/*.dmg dist/*.zip release/
+          for arch in amd64 arm64; do
+            cp "dist/windows-$arch/miguwave-setup-"*.exe release/
+            cp "dist/windows-$arch/MiguWave.exe" "release/miguwave-${version}-windows-$arch-portable.exe"
+          done
+          cd release
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: release/*
           generate_release_notes: true
