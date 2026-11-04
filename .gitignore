@@ -1,0 +1,6 @@
+/build/
+/.mygo/
+/freewave
+/dist/
+.DS_Store
+mygo_windows_*.syso
