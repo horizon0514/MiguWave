@@ -14,3 +14,4 @@
 - Windows 安装包（x64 / ARM64），系统媒体控制使用 SMTC
 - 音频缓存自动限制为 2 GB，并清理过期和中断的下载
 - 浅色和深色主题跟随系统
+- GitHub Actions 自动构建 macOS 与 Windows 产物，打 `v*` 标签时自动发布
