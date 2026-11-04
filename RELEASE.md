@@ -52,7 +52,7 @@ git tag -a v0.1.0 -m "MiguWave 0.1.0"
 git push origin v0.1.0
 ```
 
-Release 包含通用 DMG、macOS 应用 ZIP、Windows x64/ARM64 安装包与免安装版，以及合并后的 `SHA256SUMS`。工作流文件是 `.github/workflows/build.yml`。
+Release 包含通用 DMG、macOS 应用 ZIP、Windows x64/ARM64 安装包与免安装版，以及合并后的 `SHA256SUMS`。工作流文件是 `.github/workflows/ci.yml`。
 
 ## 签名与公证
 

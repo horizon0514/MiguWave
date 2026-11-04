@@ -1,6 +1,6 @@
 # MiguWave
 
-[![Build](https://github.com/horizon0514/MiguWave/actions/workflows/build.yml/badge.svg)](https://github.com/horizon0514/MiguWave/actions/workflows/build.yml)
+[![CI](https://github.com/horizon0514/MiguWave/actions/workflows/ci.yml/badge.svg)](https://github.com/horizon0514/MiguWave/actions/workflows/ci.yml)
 
 用 Go 和 [MyGo](https://github.com/egoist/mygo) 写的咪咕音乐桌面客户端。原生界面，Windows 与 macOS 共用一套代码，专注 `music.migu.cn` 曲库。
 
