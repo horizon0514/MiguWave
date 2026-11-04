@@ -43,6 +43,17 @@ brew install nsis
 go tool mygo build -platform windows/amd64,windows/arm64
 ```
 
+## GitHub Actions
+
+推送到 `main` 会自动运行格式检查、测试、静态检查，并构建 macOS 与 Windows 产物。推送 `v*` 标签会自动创建 GitHub Release：
+
+```bash
+git tag -a v0.1.0 -m "MiguWave 0.1.0"
+git push origin v0.1.0
+```
+
+Release 包含通用 DMG、macOS 应用 ZIP、Windows x64/ARM64 安装包与免安装版，以及合并后的 `SHA256SUMS`。工作流文件是 `.github/workflows/build.yml`。
+
 ## 签名与公证
 
 如果本机存在 `Developer ID Application` 证书：
