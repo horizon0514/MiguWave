@@ -136,7 +136,7 @@ go test ./...
 go vet ./...
 ```
 
-GitHub Actions 会在推送到 `main`、提交 Pull Request 和推送 `v*` 标签时，分别执行 macOS 与 Windows 的测试和构建；标签构建通过后会自动创建 Release 并上传安装包。
+GitHub Actions 会在推送到 `main`、提交 Pull Request 和推送 `v*` 标签时，分别执行 macOS 与 Windows 的测试和构建；标签构建通过后会自动创建 Release 并上传安装包。也可以在 [CI 工作流](https://github.com/horizon0514/MiguWave/actions/workflows/ci.yml) 页面手动触发。
 
 可选生成界面快照：
 
