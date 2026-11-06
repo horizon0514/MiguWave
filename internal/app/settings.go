@@ -8,19 +8,95 @@ import (
 )
 
 func (a *app) settingsPage(c *ui.Context, p palette) {
-	pageScroll(c, "settings", 22, func() {
+	pageScroll(c, "settings", 18, func() {
 		a.pageHeader(c, p, "设置", "账号、菜单栏与桌面体验")
 
-		ui.Column(c).FillWidth().MaxWidth(780).Gap(18).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(780).Gap(14).Children(func() {
 			a.settingsAccountCard(c, p)
+			a.settingsAppearanceCard(c, p)
 			a.settingsDesktopCard(c, p)
 		})
 	})
 }
 
+func (a *app) settingsAppearanceCard(c *ui.Context, p palette) {
+	ui.Column(c).FillWidth().Padding(18).Radius(18).
+		Background(p.panel).Border(1, p.line).Gap(14).Children(func() {
+		ui.Column(c).Gap(3).Children(func() {
+			ui.Text(c, "外观").FontSize(16).FontWeight(710)
+			ui.Text(c, "跟随系统，或固定使用浅色 / 深色主题").FontSize(11).TextColor(p.muted)
+		})
+
+		choice := 0
+		switch a.theme {
+		case mygo.ThemeLight:
+			choice = 1
+		case mygo.ThemeDark:
+			choice = 2
+		}
+		a.settingsRow(c, p, iconTheme, "主题",
+			"系统外观变化时，跟随系统的模式会自动同步。", func() {
+				seg := ui.Segmented(c, &choice, "跟随系统", "浅色", "深色").
+					Width(300).Label("主题")
+				if seg.Changed() {
+					source := mygo.ThemeSystem
+					switch choice {
+					case 1:
+						source = mygo.ThemeLight
+					case 2:
+						source = mygo.ThemeDark
+					}
+					a.setThemeSource(source)
+				}
+			})
+
+		ui.Divider(c)
+
+		translucent := !a.opaqueWindow
+		a.settingsRow(c, p, iconSpark, "半透明窗口",
+			"使用系统毛玻璃材质，让桌面从侧栏和内容区微微透出来。", func() {
+				sw := ui.Switch(c.Key("translucent-window"), &translucent).
+					Label("半透明窗口")
+				if sw.Changed() {
+					a.setWindowOpaque(!translucent)
+				}
+			})
+	})
+}
+
+func (a *app) setThemeSource(source mygo.ThemeSource) {
+	source = normalizeThemeSource(string(source))
+	if a.theme == source {
+		return
+	}
+	a.theme = source
+	mygo.Theme.SetSource(source)
+	a.save()
+	a.refresh()
+}
+
+func (a *app) windowVibrancy() mygo.Vibrancy {
+	if a.opaqueWindow {
+		return mygo.VibrancyNone
+	}
+	return mygo.VibrancyUnderWindow
+}
+
+func (a *app) setWindowOpaque(opaque bool) {
+	if a.opaqueWindow == opaque {
+		return
+	}
+	a.opaqueWindow = opaque
+	if a.win != nil {
+		a.win.SetVibrancy(a.windowVibrancy())
+	}
+	a.save()
+	a.refresh()
+}
+
 func (a *app) settingsAccountCard(c *ui.Context, p palette) {
-	ui.Column(c).FillWidth().Padding(20).Radius(18).
-		Background(p.panel).Border(1, p.line).Gap(16).Children(func() {
+	ui.Column(c).FillWidth().Padding(18).Radius(18).
+		Background(p.panel).Border(1, p.line).Gap(14).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Grow(1).Gap(3).Children(func() {
 				ui.Text(c, "账号与授权").FontSize(16).FontWeight(710)
@@ -74,8 +150,8 @@ func (a *app) settingsAccountCard(c *ui.Context, p palette) {
 }
 
 func (a *app) settingsDesktopCard(c *ui.Context, p palette) {
-	ui.Column(c).FillWidth().Padding(20).Radius(18).
-		Background(p.panel).Border(1, p.line).Gap(16).Children(func() {
+	ui.Column(c).FillWidth().Padding(18).Radius(18).
+		Background(p.panel).Border(1, p.line).Gap(14).Children(func() {
 		ui.Column(c).Gap(3).Children(func() {
 			ui.Text(c, "桌面与启动").FontSize(16).FontWeight(710)
 			ui.Text(c, trayHint).

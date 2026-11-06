@@ -21,8 +21,11 @@ func Run() error {
 	}()
 
 	saved := loadSaved()
+	mygo.Theme.SetSource(saved.Theme)
 	a := &app{
 		volume:         saved.Volume,
+		theme:          saved.Theme,
+		opaqueWindow:   saved.OpaqueWindow,
 		closeAction:    saved.CloseAction,
 		favorites:      saved.Favorites,
 		recent:         saved.Recent,
@@ -67,10 +70,14 @@ func Run() error {
 			MinWidth:      1040,
 			MinHeight:     680,
 			TitleBarStyle: mygo.TitleBarHiddenInset,
+			Vibrancy:      mygo.VibrancyUnderWindow,
 			StateKey:      "main",
 			Content:       ui.View(a.view),
 			Hidden:        openAtLogin,
 		})
+		if a.opaqueWindow {
+			win.SetVibrancy(mygo.VibrancyNone)
+		}
 		a.attachWindow(win)
 		a.start()
 		a.setupMenuBar()

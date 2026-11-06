@@ -44,6 +44,8 @@ type app struct {
 	quitting      bool
 	closeAction   closeAction
 	launchAtLogin bool
+	theme         mygo.ThemeSource
+	opaqueWindow  bool
 
 	menuDetail        miguSongDetail
 	menuDetailID      string

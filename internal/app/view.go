@@ -14,6 +14,15 @@ const (
 	pageTopDragHeight = 36
 )
 
+// shellTint fades the window chrome over the native vibrancy material and
+// keeps it opaque where the platform draws no material.
+func shellTint(c *ui.Context, color ui.Color, alpha float32) ui.Color {
+	if !c.Vibrancy() {
+		return color
+	}
+	return color.Alpha(alpha)
+}
+
 func (a *app) view(c *ui.Context) {
 	theme := *c.Theme()
 	p := paletteFor(&theme)
@@ -46,6 +55,9 @@ func (a *app) view(c *ui.Context) {
 		theme.Scrollbar = ui.RGBA(255, 255, 255, 0.18)
 	}
 	c.SetTheme(&theme)
+	if c.Vibrancy() {
+		c.Root().Background(ui.Transparent)
+	}
 
 	c.OnShortcut(ui.Cmd, ui.KeyF, func() {
 		a.focusSearch = true
@@ -78,14 +90,19 @@ func (a *app) view(c *ui.Context) {
 		})
 	}
 
-	ui.Column(c).Fill().Background(p.bg).Children(func() {
+	rootBg := p.bg
+	if c.Vibrancy() {
+		rootBg = ui.Transparent
+	}
+	ui.Column(c).Fill().Background(rootBg).Children(func() {
 		if a.page == pageSong {
 			a.songPage(c, p)
 			return
 		}
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			a.sidebar(c, p)
-			ui.Column(c).Grow(1).MinWidth(0).Background(p.bg).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).
+				Background(shellTint(c, p.bg, 0.9)).Children(func() {
 				ui.Row(c).Height(pageTopDragHeight).FillWidth().Shrink(0).DragWindow()
 				a.pageContent(c, p)
 			})
@@ -108,7 +125,8 @@ func (a *app) view(c *ui.Context) {
 
 func (a *app) sidebar(c *ui.Context, p palette) {
 	ui.Column(c).Width(sidebarWidth).FillHeight().Padding(0, 14, 16, 14).Gap(6).
-		Background(p.sidebar).BorderWidth(0, 0, 0, 1).BorderColor(p.line).Children(func() {
+		Background(shellTint(c, p.sidebar, 0.58)).BorderWidth(0, 0, 0, 1).
+		BorderColor(p.line).Children(func() {
 		// The column's gap completes the inset below this drag region.
 		ui.Row(c).Height(sidebarTopInset - 6).FillWidth().DragWindow()
 		ui.Row(c).Height(42).Gap(11).AlignItems(ui.Center).DragWindow().Children(func() {
@@ -132,7 +150,7 @@ func (a *app) sidebar(c *ui.Context, p palette) {
 		ui.Text(c, "浏览").FontSize(11).FontWeight(620).LetterSpacing(0.6).
 			TextColor(p.faint).Margin(10, 6, 4, 2)
 		a.navItem(c, p, iconHome, "发现", pageHome)
-		a.navItem(c, p, iconRadio, "排行榜", pageRank)
+		a.navItem(c, p, iconRank, "排行榜", pageRank)
 		a.navItem(c, p, iconPlaylist, "歌单广场", pagePlaylists)
 		a.navItem(c, p, iconMic, "歌手", pageSingers)
 		a.navItem(c, p, iconRadio, "电台", pageRadios)
@@ -259,7 +277,7 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 		return
 	}
 	cur := pl.current
-	ui.Row(c).Height(88).PaddingX(22).Gap(18).Background(p.bg).
+	ui.Row(c).Height(88).PaddingX(22).Gap(18).Background(shellTint(c, p.bg, 0.88)).
 		BorderWidth(1, 0, 0, 0).BorderColor(p.line).AlignItems(ui.Center).Children(func() {
 		ui.Row(c).Width(310).Gap(6).AlignItems(ui.Center).Children(func() {
 			info := ui.ButtonBase(c).Key("player-info").Grow(1).MinWidth(0).Padding(2, 4).Radius(8).

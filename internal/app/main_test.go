@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"freewave/internal/migu"
@@ -466,6 +467,8 @@ func TestSavedStateRoundTrip(t *testing.T) {
 		ID: "local-roundtrip", Name: "通勤", Tracks: sampleMiguTracks(),
 	}}
 	a.closeAction = closeActionQuit
+	a.theme = mygo.ThemeDark
+	a.opaqueWindow = true
 	a.save()
 
 	saved := loadSaved()
@@ -485,6 +488,12 @@ func TestSavedStateRoundTrip(t *testing.T) {
 	if saved.CloseAction != closeActionQuit {
 		t.Errorf("close action = %q", saved.CloseAction)
 	}
+	if saved.Theme != mygo.ThemeDark {
+		t.Errorf("theme = %q", saved.Theme)
+	}
+	if !saved.OpaqueWindow {
+		t.Error("opaque window setting was not saved")
+	}
 	if got := statePath(); got != filepath.Join(configDir(), "state.json") {
 		t.Errorf("statePath = %q", got)
 	}
@@ -503,6 +512,9 @@ func TestCloseActionDefaultsToMenuBar(t *testing.T) {
 	saved := loadSaved()
 	if saved.CloseAction != closeActionMenuBar {
 		t.Fatalf("default close action = %q", saved.CloseAction)
+	}
+	if saved.Theme != mygo.ThemeSystem {
+		t.Fatalf("default theme = %q", saved.Theme)
 	}
 }
 
