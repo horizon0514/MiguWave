@@ -68,9 +68,15 @@ type miguRank struct {
 }
 
 type miguPlaylist struct {
-	ID    string
-	Title string
-	Cover string
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Cover       string   `json:"cover,omitempty"`
+	CoverHQ     string   `json:"coverHq,omitempty"`
+	Owner       string   `json:"owner,omitempty"`
+	PlayCount   string   `json:"playCount,omitempty"`
+	TrackCount  int      `json:"trackCount,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
 }
 
 type miguHomeData struct {
@@ -89,24 +95,34 @@ type miguSong struct {
 	Album        string     `json:"album"`
 	AlbumID      flexString `json:"albumId"`
 	Img1         string     `json:"img1"`
+	Img2         string     `json:"img2"`
+	Img3         string     `json:"img3"`
 	ShowTags     []string   `json:"showTags"`
 	ShowTag      []string   `json:"showTag"`
 	VIP          flexString `json:"vip"`
 	PlayNumDesc  string     `json:"playNumDesc"`
-	SingerList   []struct {
+	AudioFormats []struct {
+		FormatType string `json:"formatType"`
+	} `json:"audioFormats"`
+	SingerList []struct {
 		Name string `json:"name"`
 	} `json:"singerList"`
 }
 
 type miguFeedItem struct {
 	View        string     `json:"view"`
+	Action      string     `json:"action"`
 	ResID       string     `json:"resId"`
 	ResType     flexString `json:"resType"`
 	CopyrightID string     `json:"copyrightId"`
 	Img         string     `json:"img"`
+	Img2        string     `json:"img2"`
+	Img3        string     `json:"img3"`
 	Txt         string     `json:"txt"`
 	Txt2        string     `json:"txt2"`
 	Txt3        string     `json:"txt3"`
+	Txt4        string     `json:"txt4"`
+	Txt5        string     `json:"txt5"`
 	ShowTag     []string   `json:"showTag"`
 	VIP         flexString `json:"vip"`
 	SongData    string     `json:"songData"`
@@ -181,6 +197,24 @@ func miguImage(raw string) string {
 	}
 }
 
+func miguSongThumb(song miguSong) string {
+	for _, raw := range []string{song.Img2, song.Img1, song.Img3} {
+		if src := miguImage(raw); src != "" {
+			return src
+		}
+	}
+	return ""
+}
+
+func miguSongCover(song miguSong) string {
+	for _, raw := range []string{song.Img3, song.Img2, song.Img1} {
+		if src := miguImage(raw); src != "" {
+			return src
+		}
+	}
+	return ""
+}
+
 func miguArtist(names []string) string {
 	out := make([]string, 0, len(names))
 	for _, name := range names {
@@ -232,7 +266,8 @@ func miguSongTrack(song miguSong) Track {
 		Title:        cleanDisplay(song.SongName),
 		Artist:       cleanDisplay(miguArtist(names)),
 		Album:        cleanDisplay(song.Album),
-		Cover:        miguImage(song.Img1),
+		Cover:        miguSongThumb(song),
+		CoverHQ:      miguSongCover(song),
 		DurationSec:  duration,
 		Source:       "migu",
 		CopyrightID:  song.CopyrightID,
@@ -482,9 +517,11 @@ func miguPlaylistsFromSection(section miguFeedSection) []miguPlaylist {
 			continue
 		}
 		out = append(out, miguPlaylist{
-			ID:    item.ResID,
-			Title: cleanDisplay(item.Txt),
-			Cover: miguImage(item.Img),
+			ID:          item.ResID,
+			Title:       cleanDisplay(item.Txt),
+			Description: cleanDescription(item.Txt2),
+			Cover:       miguImage(firstNonEmpty(item.Img, item.Img2, item.Img3)),
+			CoverHQ:     miguImage(firstNonEmpty(item.Img3, item.Img2, item.Img)),
 		})
 	}
 	return out

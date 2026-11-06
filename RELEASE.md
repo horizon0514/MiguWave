@@ -85,6 +85,8 @@ go tool mygo build -platform darwin/universal \
 
 没有 Developer ID 证书时，MyGo 会生成 ad-hoc 签名包。它可以在构建机上运行，但其他 Mac 会触发 Gatekeeper；发布说明必须明确这一点，不能标记为「已签名」或「已公证」。
 
+本机开发不要直接覆盖安装 ad-hoc 包。运行 `./scripts/build-local.sh --install` 会创建并复用一个仅限本机的自签名身份，避免每次重新构建后 macOS 把 App 当成新程序、反复要求钥匙串密码。这个本机身份不能用于发布，也不要把 `~/Library/Application Support/MiguWave/local-signing` 分发给其他人。
+
 Windows 安装包当前未做代码签名，SmartScreen 会提示未知发布者；发布说明需要给出「更多信息 → 仍要运行」的步骤。要签名时在 `mygo.json` 中配置证书：
 
 ```json

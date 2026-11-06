@@ -8,7 +8,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-const sidebarWidth = 232
+const (
+	sidebarWidth      = 232
+	pageTopDragHeight = 36
+)
 
 func (a *app) view(c *ui.Context) {
 	theme := *c.Theme()
@@ -26,6 +29,17 @@ func (a *app) view(c *ui.Context) {
 	theme.Focus = p.accent.Alpha(0.55)
 	theme.Scrollbar = p.muted.Alpha(0.35)
 	theme.Radius = 8
+	if a.page == pageSong {
+		theme.Background = songInk
+		theme.Surface = ui.RGBA(255, 255, 255, 0.06)
+		theme.SurfaceHover = ui.RGBA(255, 255, 255, 0.1)
+		theme.Border = ui.RGBA(255, 255, 255, 0.12)
+		theme.Text = songWhite
+		theme.TextMuted = ui.RGBA(255, 255, 255, 0.56)
+		theme.Accent = songWhite
+		theme.AccentText = songInk
+		theme.Scrollbar = ui.RGBA(255, 255, 255, 0.18)
+	}
 	c.SetTheme(&theme)
 
 	c.OnShortcut(ui.Cmd, ui.KeyF, func() {
@@ -47,11 +61,21 @@ func (a *app) view(c *ui.Context) {
 			a.pl.toggle()
 		}
 	})
+	if a.page == pageSong {
+		c.OnShortcut(0, ui.KeyEscape, func() {
+			a.navTo(a.songBackTarget())
+		})
+	}
 
 	ui.Column(c).Fill().Background(p.bg).Children(func() {
+		if a.page == pageSong {
+			a.songPage(c, p)
+			return
+		}
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			a.sidebar(c, p)
 			ui.Column(c).Grow(1).MinWidth(0).Background(p.bg).Children(func() {
+				ui.Row(c).Height(pageTopDragHeight).FillWidth().Shrink(0).DragWindow()
 				a.pageContent(c, p)
 			})
 		})
@@ -59,6 +83,7 @@ func (a *app) view(c *ui.Context) {
 	})
 
 	a.accountModal(c, p)
+	a.localPlaylistModals(c, p)
 
 	if a.toast != "" {
 		c.Toast(a.toast)
@@ -83,7 +108,7 @@ func (a *app) sidebar(c *ui.Context, p palette) {
 			})
 		})
 
-		search := ui.SearchField(c, &a.searchInput).Key("side-search").FillWidth().
+		search := ui.SearchField(c.Key("side-search"), &a.searchInput).FillWidth().
 			Placeholder("搜索歌曲、歌手、专辑").Label("搜索").Margin(6, 0, 10, 0)
 		if a.focusSearch {
 			search.Focus()
@@ -97,34 +122,46 @@ func (a *app) sidebar(c *ui.Context, p palette) {
 			TextColor(p.faint).Margin(10, 6, 4, 2)
 		a.navItem(c, p, iconHome, "发现", pageHome)
 		a.navItem(c, p, iconRadio, "排行榜", pageRank)
+		a.navItem(c, p, iconPlaylist, "歌单广场", pagePlaylists)
+		a.navItem(c, p, iconMic, "歌手", pageSingers)
+		a.navItem(c, p, iconRadio, "电台", pageRadios)
 
 		ui.Text(c, "资料库").FontSize(11).FontWeight(620).LetterSpacing(0.6).
 			TextColor(p.faint).Margin(10, 16, 4, 2)
 		a.navItem(c, p, iconHeart, "我的收藏", pageFavorites)
+		a.navItem(c, p, iconPlus, "自建歌单", pageLocalPlaylists)
+		a.navItem(c, p, iconPlaylist, "收藏歌单", pageSavedPlaylists)
 		a.navItem(c, p, iconClock, "最近播放", pageRecent)
-		if a.page == pageSearch {
-			a.navItem(c, p, iconSearchIcon, "搜索结果", pageSearch)
+		if a.page == pageSong {
+			a.navItem(c, p, iconLyrics, "歌曲详情", pageSong)
 		}
 
 		ui.Spacer(c)
 		account := ui.ButtonBase(c).Key("migu-account").FillWidth().Padding(10, 9).Radius(12).
-			AlignItems(ui.Center).Gap(9).FocusRing(false).Label("咪咕账号").
+			AlignItems(ui.Center).Justify(ui.Start).Gap(9).FocusRing(false).Label("咪咕账号").
 			Background(p.panel)
 		if account.Hovered() {
 			account.Background(p.panelAlt)
 		}
 		account.Children(func() {
-			ui.Box(c).Size(28, 28).Radius(9).Gradient(p.accent, p.accent2, 35).Center().Children(func() {
-				ui.Icon(c, iconSpark).Size(14, 14).TextColor(p.onAccent)
-			})
+			a.accountAvatar(c, p, 28, 9)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-				ui.Text(c, "咪咕账号").FontSize(11.5).FontWeight(620).SingleLine()
+				title := "咪咕账号"
 				status := "仅播放免费曲目"
 				color := p.faint
 				if a.miguToken != "" {
 					status = "咪咕账号已连接"
 					color = ui.Hex("#1b8e52")
+					if a.miguProfile != nil {
+						if a.miguProfile.Nickname != "" {
+							title = a.miguProfile.Nickname
+						}
+						if a.miguProfile.Phone != "" {
+							status = a.miguProfile.Phone
+						}
+					}
 				}
+				ui.Text(c, title).FontSize(11.5).FontWeight(620).SingleLine()
 				ui.Text(c, status).FontSize(10).TextColor(color).SingleLine()
 			})
 			ui.Box(c).Size(6, 6).Radius(999).Background(statusDot(p, a.miguToken != ""))
@@ -158,9 +195,9 @@ func logoMark(c *ui.Context, p palette) {
 }
 
 func (a *app) navItem(c *ui.Context, p palette, ic *ui.SVG, label string, target pageKind) {
-	selected := a.page == target
-	b := ui.ButtonBase(c).Key("nav-" + label).Height(34).PaddingX(10).Radius(8).
-		Gap(10).AlignItems(ui.Center).FocusRing(false).Label(label)
+	selected := a.navActive(target)
+	b := ui.ButtonBase(c).Key("nav-" + label).FillWidth().Height(34).PaddingX(10).Radius(8).
+		Gap(10).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(label)
 	bg := ui.Transparent
 	switch {
 	case selected:
@@ -182,6 +219,21 @@ func (a *app) navItem(c *ui.Context, p palette, ic *ui.SVG, label string, target
 	}
 }
 
+func (a *app) navActive(target pageKind) bool {
+	switch target {
+	case pagePlaylists:
+		return a.page == pagePlaylists || a.page == pagePlaylistDetail
+	case pageSingers:
+		return a.page == pageSingers || a.page == pageSingerDetail
+	case pageRadios:
+		return a.page == pageRadios || a.page == pageRadioDetail
+	case pageLocalPlaylists:
+		return a.page == pageLocalPlaylists || a.page == pageLocalPlaylistDetail
+	default:
+		return a.page == target
+	}
+}
+
 func (a *app) pageContent(c *ui.Context, p palette) {
 	switch a.page {
 	case pageHome:
@@ -194,6 +246,26 @@ func (a *app) pageContent(c *ui.Context, p palette) {
 		a.libraryPage(c, p, "最近播放", "回到刚刚听过的音乐", a.recent, iconClock)
 	case pageSearch:
 		a.searchPage(c, p)
+	case pageSong:
+		a.songPage(c, p)
+	case pagePlaylists:
+		a.playlistsPage(c, p)
+	case pagePlaylistDetail:
+		a.playlistDetailPage(c, p)
+	case pageSavedPlaylists:
+		a.savedPlaylistsPage(c, p)
+	case pageSingers:
+		a.singersPage(c, p)
+	case pageSingerDetail:
+		a.singerDetailPage(c, p)
+	case pageRadios:
+		a.radiosPage(c, p)
+	case pageRadioDetail:
+		a.radioDetailPage(c, p)
+	case pageLocalPlaylists:
+		a.localPlaylistsPage(c, p)
+	case pageLocalPlaylistDetail:
+		a.localPlaylistDetailPage(c, p)
 	default:
 		a.homePage(c, p)
 	}
@@ -207,36 +279,50 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 	cur := pl.current
 	ui.Row(c).Height(88).PaddingX(22).Gap(18).Background(p.bg).
 		BorderWidth(1, 0, 0, 0).BorderColor(p.line).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Width(310).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(50, 50).Radius(8).Children(func() {
-				title := "MiguWave"
-				if pl.hasCurrent {
-					title = cur.Title
-				}
-				a.cover(c, cur.Cover, title, 8)
-			})
-			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
-				title := "还没有播放"
-				if pl.hasCurrent {
-					title = cur.Title
-				}
-				ui.Text(c, title).FontSize(13).FontWeight(600).SingleLine()
-				sub := "从发现页挑一首咪咕歌曲"
-				if pl.hasCurrent {
-					sub = cur.Subtitle()
-				}
-				if pl.loading {
-					if cur.NeedsResolve() {
-						sub = "正在解析咪咕音频…"
-					} else {
-						sub = fmt.Sprintf("正在载入 %d%%", int(pl.progress*100))
+		ui.Row(c).Width(310).Gap(6).AlignItems(ui.Center).Children(func() {
+			info := ui.ButtonBase(c).Key("player-info").Grow(1).MinWidth(0).Padding(2, 4).Radius(8).
+				Gap(10).AlignItems(ui.Center).FocusRing(false).Label("查看歌曲详情")
+			if info.Hovered() && pl.hasCurrent {
+				info.Background(p.hover)
+			}
+			info.Children(func() {
+				ui.Box(c).Size(50, 50).Radius(8).Children(func() {
+					title := "MiguWave"
+					if pl.hasCurrent {
+						title = cur.Title
 					}
-				}
-				if pl.err != "" {
-					sub = pl.err
-				}
-				ui.Text(c, sub).FontSize(11.5).TextColor(metaColor(p, pl)).SingleLine()
+					a.cover(c, cur.Cover, title, 8)
+				})
+				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
+					title := "还没有播放"
+					if pl.hasCurrent {
+						title = cur.Title
+					}
+					titleColor := p.text
+					if info.Hovered() && pl.hasCurrent {
+						titleColor = p.accent
+					}
+					ui.Text(c, title).FontSize(13).FontWeight(600).SingleLine().TextColor(titleColor)
+					sub := "从发现页挑一首咪咕歌曲"
+					if pl.hasCurrent {
+						sub = cur.Subtitle()
+					}
+					if pl.loading {
+						if cur.NeedsResolve() {
+							sub = "正在解析咪咕音频…"
+						} else {
+							sub = fmt.Sprintf("正在载入 %d%%", int(pl.progress*100))
+						}
+					}
+					if pl.err != "" {
+						sub = pl.err
+					}
+					ui.Text(c, sub).FontSize(11.5).TextColor(metaColor(p, pl)).SingleLine()
+				})
 			})
+			if info.Clicked() && pl.hasCurrent {
+				a.openSong(cur, pl.queue, pl.at)
+			}
 			if pl.hasCurrent {
 				fav := a.isFavorite(cur.ID)
 				ic := iconHeart
@@ -427,6 +513,12 @@ func (a *app) trackRow(c *ui.Context, p palette, tr Track, tracks []Track, i int
 				ui.Text(c, artist).FontSize(11.5).TextColor(p.muted).SingleLine()
 			}
 		})
+		if row.Hovered() {
+			b := a.iconButton(c, "track-info-"+tr.ID, iconLyrics, "查看歌词与详情", false)
+			if b.Clicked() {
+				a.openSong(tr, tracks, i)
+			}
+		}
 		fav := a.isFavorite(tr.ID)
 		if fav || row.Hovered() {
 			ic := iconHeart

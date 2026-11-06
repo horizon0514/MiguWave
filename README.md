@@ -37,11 +37,16 @@ xattr -dr com.apple.quarantine /Applications/MiguWave.app
 
 ## 功能
 
-- 发现页：咪咕首页推荐、新歌速递、热门榜单、热搜词
+- 发现页：今日推荐、私人 FM / 上瘾电台 / 听见不同入口、推荐歌单、新歌速递、热门榜单、热搜词
 - 排行榜：国风热歌榜、音乐风向榜、尖叫新歌榜、尖叫热歌榜、尖叫原创榜，每榜最多 100 首
+- 歌单广场：编辑推荐、歌单百宝箱、深度歌手、歌单上新，歌单详情支持分页加载、播放全部与收藏
+- 歌手：华语、欧美、日韩分类浏览，歌手详情包含简介、热门歌曲与相似歌手
+- 电台：私享电台、时序电台和场景电台；场景电台可直接播放，私人 FM 会明确提示接口限制
 - 搜索：歌曲、歌手、专辑搜索，结果分页加载，自动去重
 - 播放：免费曲目直接解析播放；登录咪咕账号后可播放账号有权限的曲目
-- 收藏、最近播放、本地持久化
+- 歌曲详情：封面、专辑、时长、音质与版权信息，支持滚动歌词和点击歌词跳转播放
+- 自建歌单：新建、重命名、删除歌单，从歌曲卡片、列表或歌曲详情加入歌曲，歌曲不会重复
+- 收藏歌曲、收藏歌单、最近播放、自建歌单与本地持久化
 - 底部播放器、音量、随机、循环、系统媒体键与系统媒体控制（macOS Now Playing / Windows SMTC）
 - 浅色 / 深色模式跟随系统
 
@@ -59,6 +64,14 @@ go tool mygo dev
 go tool mygo build
 go tool mygo build -platform windows/amd64,windows/arm64
 ```
+
+在 macOS 上反复构建并安装到 `/Applications` 时，请使用：
+
+```bash
+./scripts/build-local.sh --install
+```
+
+脚本首次运行会在 `~/Library/Application Support/MiguWave/local-signing` 生成一次仅本机使用的代码签名身份，之后的本地构建都会复用它。不要把这个目录或其中的私钥用于发布。稳定的签名身份可以让 macOS 钥匙串辨认出更新后的同一个 App；第一次读取已保存令牌时如果弹出授权窗口，选择「始终允许」，以后重新构建就不会再要求输入登录密码。
 
 ## 咪咕账号授权
 
@@ -81,6 +94,8 @@ go tool mygo build -platform windows/amd64,windows/arm64
 - account：`migu-pacmtoken`
 - Windows 的目标名是 `MiguWave/migu-pacmtoken`，由 DPAPI 加密
 
+咪咕昵称、头像、手机号等账号资料只在应用运行期间从咪咕接口读取并保存在内存中，不写入 `state.json`；重新启动后会使用钥匙串里的令牌重新获取。
+
 也可以通过环境变量临时提供，优先级高于系统凭据存储：
 
 ```bash
@@ -91,11 +106,13 @@ MIGU_PACTOKEN=你的令牌 go tool mygo dev
 
 ## 数据与缓存
 
-- macOS 收藏和最近播放：`~/Library/Application Support/MiguWave/state.json`
+- macOS 收藏、最近播放和自建歌单：`~/Library/Application Support/MiguWave/state.json`
 - macOS 音频缓存：`~/Library/Caches/MiguWave/audio`
-- Windows 收藏和最近播放：`%APPDATA%\MiguWave\state.json`
+- Windows 收藏、最近播放和自建歌单：`%APPDATA%\MiguWave\state.json`
 - Windows 音频缓存：`%LOCALAPPDATA%\MiguWave\audio`
 - 封面只在内存中缓存，应用重启后重新加载
+
+自建歌单只在当前设备上创建和保存，不会同步到咪咕账号，也不会修改咪咕账号中的歌单。
 
 ## 当前限制
 
@@ -109,6 +126,7 @@ MIGU_PACTOKEN=你的令牌 go tool mygo dev
 - 音频缓存最多保留 2 GB，超过后自动删除最旧的曲目
 - 超过 30 天的音频和超过 24 小时的未完成下载会在启动时清理
 - 登录令牌只写入系统凭据存储；应用不会读取或保存咪咕账号密码
+- 自建歌单名称和歌曲顺序只写入本机，不会上传到咪咕
 - 播放时需要向咪咕请求曲目信息和临时播放地址，除此之外不上传本地数据
 
 ## 卸载

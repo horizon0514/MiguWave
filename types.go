@@ -12,6 +12,7 @@ type Track struct {
 	Artist       string  `json:"artist"`
 	Album        string  `json:"album"`
 	Cover        string  `json:"cover,omitempty"`
+	CoverHQ      string  `json:"-"`
 	URL          string  `json:"url,omitempty"`
 	DurationSec  float64 `json:"durationSec,omitempty"`
 	Source       string  `json:"source,omitempty"`
@@ -19,6 +20,31 @@ type Track struct {
 	ResourceType string  `json:"resourceType,omitempty"`
 	VIP          bool    `json:"vip,omitempty"`
 	PlayCount    string  `json:"playCount,omitempty"`
+}
+
+// localPlaylist is a playlist kept by this app. It never changes the Migu
+// account, so every mutation stays local and is restored from state.json.
+type localPlaylist struct {
+	ID     string  `json:"id"`
+	Name   string  `json:"name"`
+	Tracks []Track `json:"tracks,omitempty"`
+}
+
+func (p localPlaylist) Duration() time.Duration {
+	var total time.Duration
+	for _, track := range p.Tracks {
+		total += track.Duration()
+	}
+	return total
+}
+
+func (p localPlaylist) Contains(trackID string) bool {
+	for _, track := range p.Tracks {
+		if track.ID == trackID {
+			return true
+		}
+	}
+	return false
 }
 
 func (t Track) Duration() time.Duration {

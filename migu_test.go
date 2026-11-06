@@ -34,6 +34,8 @@ func TestMiguSongTrackVIP(t *testing.T) {
 		"duration": 269,
 		"album": "叶惠美",
 		"img1": "/v5/cover.jpg",
+		"img2": "/v5/cover-400.jpg",
+		"img3": "/v5/cover-800.jpg",
 		"vip": 1,
 		"playNumDesc": "1.2亿",
 		"singerList": [{"name": "周杰伦"}]
@@ -53,6 +55,15 @@ func TestMiguSongTrackVIP(t *testing.T) {
 	}
 	if !strings.HasPrefix(track.Cover, "https://d.musicapp.migu.cn/") {
 		t.Errorf("cover = %q", track.Cover)
+	}
+	if track.Cover != "https://d.musicapp.migu.cn/v5/cover-400.jpg" {
+		t.Errorf("thumb cover = %q", track.Cover)
+	}
+	if got := miguSongCover(song); got != "https://d.musicapp.migu.cn/v5/cover-800.jpg" {
+		t.Errorf("detail cover = %q", got)
+	}
+	if track.CoverHQ != "https://d.musicapp.migu.cn/v5/cover-800.jpg" {
+		t.Errorf("high-res cover = %q", track.CoverHQ)
 	}
 	if !track.NeedsResolve() {
 		t.Error("Migu track without URL should need resolve")
@@ -112,6 +123,38 @@ func TestSearchMiguPagination(t *testing.T) {
 	}
 	if merged[0].Title != "第一页" || merged[1].Title != "第二页" {
 		t.Fatalf("unexpected pagination order: %+v", merged)
+	}
+}
+
+func TestResolveMiguCoverHQ(t *testing.T) {
+	oldEndpoint, oldClient := miguSearchEndpoint, miguClient
+	defer func() {
+		miguSearchEndpoint = oldEndpoint
+		miguClient = oldClient
+	}()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"contentId": "other",
+				"songName":  "晴天",
+				"img3":      "/v5/wrong.jpg",
+			},
+			{
+				"contentId": "600913000007163534",
+				"songName":  "晴天",
+				"img1":      "/v5/cover.jpg",
+				"img3":      "/v5/cover-800.jpg",
+			},
+		})
+	}))
+	defer server.Close()
+	miguSearchEndpoint = server.URL
+	miguClient = server.Client()
+
+	track := Track{ID: "migu:600913000007163534", Title: "晴天", Artist: "周杰伦"}
+	if got := resolveMiguCoverHQ(context.Background(), track); got != "https://d.musicapp.migu.cn/v5/cover-800.jpg" {
+		t.Fatalf("high-res cover = %q", got)
 	}
 }
 

@@ -170,6 +170,14 @@ func TestMiguQRRedirectTarget(t *testing.T) {
 }
 
 func TestMiguCompleteLoginExtractsPacmtoken(t *testing.T) {
+	validate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"code": "199999", "info": "系统繁忙，请稍后重试"})
+	}))
+	defer validate.Close()
+	oldValidate := miguTokenValidateURL
+	defer func() { miguTokenValidateURL = oldValidate }()
+	miguTokenValidateURL = validate.URL
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/redirect":
@@ -196,6 +204,141 @@ func TestMiguCompleteLoginExtractsPacmtoken(t *testing.T) {
 	}
 	if token != "p-ac-token" {
 		t.Fatalf("pacmtoken = %q", token)
+	}
+}
+
+func TestMiguExchangeLoginToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("type"); got != "2" {
+			t.Errorf("type = %q", got)
+		}
+		if got := r.URL.Query().Get("sourceId"); got != "220029" {
+			t.Errorf("sourceId = %q", got)
+		}
+		if r.Header.Get("deviceId") == "" {
+			t.Error("deviceId header is missing")
+		}
+		switch r.URL.Query().Get("token") {
+		case "header-token":
+			w.Header().Set("pacmtoken", "p-ac-from-header")
+			_, _ = w.Write([]byte(`{"code":"000000"}`))
+		case "data-token":
+			_, _ = w.Write([]byte(`{"code":"000000","data":{"pacmtoken":"p-ac-from-data"}}`))
+		case "bad-token":
+			w.Header().Set("pacmtoken", "must-not-be-used")
+			_, _ = w.Write([]byte(`{"code":"199999","info":"系统繁忙，请稍后重试"}`))
+		default:
+			_, _ = w.Write([]byte(`{"code":"000000"}`))
+		}
+	}))
+	defer server.Close()
+	oldValidate := miguTokenValidateURL
+	defer func() { miguTokenValidateURL = oldValidate }()
+	miguTokenValidateURL = server.URL
+
+	cases := []struct {
+		token string
+		want  string
+		err   string
+	}{
+		{"header-token", "p-ac-from-header", ""},
+		{"data-token", "p-ac-from-data", ""},
+		{"bad-token", "", "系统繁忙"},
+	}
+	for _, tc := range cases {
+		token, err := exchangeMiguLoginToken(context.Background(), nil, nil, tc.token)
+		if tc.err != "" {
+			if err == nil || !strings.Contains(err.Error(), tc.err) {
+				t.Errorf("%s: err = %v, want %q", tc.token, err, tc.err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s: %v", tc.token, err)
+			continue
+		}
+		if token != tc.want {
+			t.Errorf("%s: token = %q, want %q", tc.token, token, tc.want)
+		}
+	}
+}
+
+func TestMiguLoginTokenFromURL(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want string
+	}{
+		{"https://passport.migu.cn/done?token=abc", "abc"},
+		{"https://passport.migu.cn/done?utoken=def-token", "def-token"},
+		{"https://passport.migu.cn/done?miguToken=ghi", "ghi"},
+		{"https://passport.migu.cn/done#ptoken=jkl", "jkl"},
+		{"https://music.migu.cn/v3/#/login?token=hash-token", "hash-token"},
+		{"https://music.migu.cn/v3/#/login?foo=1&utoken=hash-utoken", "hash-utoken"},
+		{"https://passport.migu.cn/done?foo=1", ""},
+	}
+	for _, tc := range cases {
+		if got := miguLoginTokenFromURL(tc.raw); got != tc.want {
+			t.Errorf("%s: token = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
+	raw := "https://passport.migu.cn/done?" + "pacm" + "token=direct-token"
+	if got := miguTokenParamFromURL(raw, "pacmtoken"); got != "direct-token" {
+		t.Errorf("pacmtoken param = %q", got)
+	}
+}
+
+func TestCollectMiguStorageValue(t *testing.T) {
+	var candidates []miguBrowserToken
+	add := func(value string, loginToken bool) {
+		value = normalizeMiguToken(value)
+		if value == "" {
+			return
+		}
+		candidates = append(candidates, miguBrowserToken{value: value, loginToken: loginToken})
+	}
+
+	collectMiguStorageValue("mg_auth", `{"pacmtoken":"direct-token","token":"login-token"}`, add)
+	collectMiguStorageValue("mg_auth_pacmtoken", `"quoted-token"`, add)
+	collectMiguStorageValue("unrelated", `https://music.migu.cn/v3/#/login?token=url-token`, add)
+
+	want := []miguBrowserToken{
+		{value: "direct-token"},
+		{value: "login-token", loginToken: true},
+		{value: "quoted-token"},
+		{value: "url-token", loginToken: true},
+	}
+	if len(candidates) != len(want) {
+		t.Fatalf("candidates = %+v, want %+v", candidates, want)
+	}
+	for i := range want {
+		if candidates[i] != want[i] {
+			t.Errorf("candidate %d = %+v, want %+v", i, candidates[i], want[i])
+		}
+	}
+}
+
+func TestMiguQRPollConfirmedWithoutRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": 2000,
+			"result": map[string]any{"token": "passport-token"},
+		})
+	}))
+	defer server.Close()
+	oldQuery := miguQRQueryURL
+	defer func() { miguQRQueryURL = oldQuery }()
+	miguQRQueryURL = server.URL
+
+	session, err := newMiguAuthSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	poll, err := session.pollQR(context.Background(), "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if poll.State != miguQRConfirmed || poll.Token != "passport-token" || poll.RedirectURL != "" {
+		t.Fatalf("poll = %+v", poll)
 	}
 }
 

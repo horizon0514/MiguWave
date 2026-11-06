@@ -15,14 +15,22 @@ func main() {
 
 	saved := loadSaved()
 	a := &app{
-		volume:    saved.Volume,
-		favorites: saved.Favorites,
-		recent:    saved.Recent,
-		page:      pageHome,
-		miguToken: loadMiguToken(),
-		arts:      map[string]ui.ImageSource{},
-		artLoad:   map[string]bool{},
-		artFail:   map[string]bool{},
+		volume:         saved.Volume,
+		favorites:      saved.Favorites,
+		recent:         saved.Recent,
+		savedPlaylists: saved.SavedPlaylists,
+		localPlaylists: saved.LocalPlaylists,
+		page:           pageHome,
+		miguToken:      loadMiguToken(),
+		arts:           map[string]ui.ImageSource{},
+		artLoad:        map[string]bool{},
+		artFail:        map[string]bool{},
+		artTints:       map[string]ui.Color{},
+		artBackdrops:   map[string]*ui.Bitmap{},
+		songCache:      map[string]miguSongDetail{},
+		coverHQ:        map[string]string{},
+		coverHQLoad:    map[string]bool{},
+		coverHQFail:    map[string]bool{},
 	}
 	a.pl = newPlayer(a)
 

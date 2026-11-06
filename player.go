@@ -63,6 +63,7 @@ type player struct {
 
 	duration time.Duration
 	npKey    string
+	pending  time.Duration
 }
 
 func newPlayer(a *app) *player {
@@ -125,12 +126,17 @@ func (p *player) load() {
 	}
 	p.current = p.queue[p.at]
 	p.hasCurrent = true
+	if p.app != nil {
+		p.app.followPlayerTrack(p.current)
+	}
 	p.playing = false
 	p.loading = true
+	p.pending = 0
 	p.progress = 0
 	p.err = ""
 	p.duration = p.current.Duration()
 	p.npKey = ""
+	p.app.resetStageAudio(p.current.ID)
 	p.app.refresh()
 	p.syncNowPlaying(nil)
 
@@ -152,6 +158,7 @@ func (p *player) openTrack(ctx context.Context, gen int, t Track) {
 		p.fail(gen, err)
 		return
 	}
+	go p.app.loadEnvelope(gen, t.ID, file.Name())
 	p.app.post(func() {
 		if p.gen != gen {
 			out.Close()
@@ -189,6 +196,10 @@ func (p *player) start(out *audio.Player, t Track, art []byte) {
 		p.duration = d
 	}
 	out.SetVolume(p.volume)
+	if p.pending > 0 {
+		out.Seek(p.pending)
+		p.pending = 0
+	}
 	gen := p.gen
 	out.OnEnd(func() {
 		p.app.post(func() { p.ended(gen) })
@@ -206,6 +217,7 @@ func (p *player) fail(gen int, err error) {
 		}
 		p.loading = false
 		p.playing = false
+		p.pending = 0
 		p.err = friendlyError(err)
 		p.app.refresh()
 	})
@@ -324,6 +336,9 @@ func (p *player) prev() {
 
 func (p *player) seek(pos time.Duration) {
 	if p.out == nil {
+		if p.loading {
+			p.pending = pos
+		}
 		return
 	}
 	p.out.Seek(pos)

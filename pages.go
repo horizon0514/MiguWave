@@ -10,7 +10,7 @@ import (
 
 func pageScroll(c *ui.Context, key string, gap float32, build func()) {
 	ui.Scroll(c).Key("scroll-" + key).Grow(1).MinHeight(0).Children(func() {
-		ui.Column(c).FillWidth().Padding(36, 42, 40, 42).Gap(gap).Children(build)
+		ui.Column(c).FillWidth().Padding(0, 42, 40, 42).Gap(gap).Children(build)
 	})
 }
 
@@ -33,6 +33,9 @@ func (a *app) homePage(c *ui.Context, p palette) {
 				})
 			}
 		})
+
+		a.homeQuickTiles(c, p)
+		a.homePlaylists(c, p)
 
 		ui.Column(c).Gap(16).Children(func() {
 			a.sectionTitle(c, p, "新歌速递", "MIGU MUSIC")
@@ -158,12 +161,13 @@ func (a *app) hero(c *ui.Context, p palette) {
 					Shadow(0, 20, 38, -10, ui.RGBA(71, 9, 31, 0.38))
 				cover.Children(func() {
 					title := "MiguWave"
-					raw := ""
+					raw, low := "", ""
 					if track != nil {
 						title = track.Title
-						raw = track.Cover
+						raw = a.hqCover(*track)
+						low = track.Cover
 					}
-					a.cover(c, raw, title, 18)
+					a.coverPair(c, raw, low, title, 18)
 				})
 				cover.Rotate(-2.5)
 			})
@@ -348,9 +352,14 @@ func (a *app) rankHero(c *ui.Context, p palette) {
 
 func (a *app) searchPage(c *ui.Context, p palette) {
 	pageScroll(c, "search", 24, func() {
+		ui.Row(c).Height(34).AlignItems(ui.Center).DragWindow().Children(func() {
+			a.backLink(c, p, searchBackLabel(a.searchFrom), func() {
+				a.navTo(a.searchBackTarget())
+			})
+		})
 		a.pageHeader(c, p, "搜索咪咕曲库", "免费曲目直接播放，登录后使用账号有权限的曲库")
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			field := ui.SearchField(c, &a.searchInput).Key("page-search").Width(460).
+			field := ui.SearchField(c.Key("page-search"), &a.searchInput).Width(460).
 				Placeholder("歌名、歌手、专辑").Label("搜索咪咕音乐")
 			if field.Submitted() {
 				a.runSearch(a.searchInput)
@@ -421,6 +430,29 @@ func (a *app) searchPage(c *ui.Context, p palette) {
 	})
 }
 
+func searchBackLabel(from pageKind) string {
+	switch from {
+	case pageFavorites:
+		return "返回我的收藏"
+	case pageRecent:
+		return "返回最近播放"
+	case pageRank:
+		return "返回排行榜"
+	case pagePlaylists, pagePlaylistDetail:
+		return "返回歌单广场"
+	case pageSavedPlaylists:
+		return "返回收藏歌单"
+	case pageSingers, pageSingerDetail:
+		return "返回歌手"
+	case pageRadios, pageRadioDetail:
+		return "返回电台"
+	case pageLocalPlaylists, pageLocalPlaylistDetail:
+		return "返回自建歌单"
+	default:
+		return "返回发现"
+	}
+}
+
 func (a *app) libraryPage(c *ui.Context, p palette, title, subtitle string, tracks []Track, ic *ui.SVG) {
 	pageScroll(c, title, 24, func() {
 		a.pageHeader(c, p, title, subtitle)
@@ -476,7 +508,12 @@ func (a *app) songCard(c *ui.Context, p palette, track Track, tracks []Track, in
 			art.Shadow(0, 3, 10, -5, p.shadow)
 		}
 		art.Children(func() {
-			a.cover(c, track.Cover, track.Title, 13)
+			cover, low := track.Cover, ""
+			if scope == "new" {
+				cover = a.hqCover(track)
+				low = track.Cover
+			}
+			a.coverPair(c, cover, low, track.Title, 13)
 			if track.VIP {
 				ui.Box(c).Absolute().Top(9).Left(9).Padding(4, 7).Radius(999).
 					Background(ui.RGBA(255, 38, 103, 0.92)).Children(func() {
@@ -488,6 +525,16 @@ func (a *app) songCard(c *ui.Context, p palette, track Track, tracks []Track, in
 				a.cardPlayButton(c, p, scope+"-play-"+track.ID, func() {
 					a.playTracks(tracks, index)
 				})
+				a.songPlaylistOverlayButton(c, scope+"-add-"+track.ID, track)
+				detail := ui.ButtonBase(c).Key(scope+"-info-"+track.ID).Absolute().Top(8).Right(8).
+					Size(30, 30).Center().Radius(999).FocusRing(false).Label("查看歌词与详情").
+					Background(ui.RGBA(18, 8, 13, 0.55))
+				detail.Children(func() {
+					ui.Icon(c, iconLyrics).Size(15, 15).TextColor(ui.Hex("#ffffff"))
+				})
+				if detail.Clicked() {
+					a.openSong(track, tracks, index)
+				}
 			}
 		})
 		ui.Text(c, track.Title).FontSize(13).FontWeight(580).MaxLines(2).LineHeight(1.24)
@@ -553,6 +600,16 @@ func (a *app) songRow(c *ui.Context, p palette, track Track, tracks []Track, ind
 			ui.Text(c, track.PlayCount).FontSize(10.5).TextColor(p.faint).Width(74).
 				TextAlign(ui.End).SingleLine()
 		}
+		if row.Hovered() {
+			b := a.iconButton(c, scope+"-info-"+track.ID, iconLyrics, "查看歌词与详情", false)
+			if b.Clicked() {
+				a.openSong(track, tracks, index)
+			}
+			a.songPlaylistButton(c, scope+"-add-"+track.ID, track)
+			if scope == "local" {
+				a.removeFromLocalPlaylistButton(c, scope, track)
+			}
+		}
 		fav := a.isFavorite(track.ID)
 		if fav || row.Hovered() {
 			ic := iconHeart
@@ -597,7 +654,8 @@ func (a *app) accountModal(c *ui.Context, p palette) {
 				}
 			})
 
-			if a.miguToken != "" && a.authPhase == miguAuthConnected {
+			if a.miguToken != "" &&
+				(a.authPhase == miguAuthConnected || a.authPhase == miguAuthChecking) {
 				a.accountConnectedPanel(c, p)
 			} else {
 				a.accountModeTabs(c, p)
@@ -765,15 +823,43 @@ func (a *app) accountConnectedPanel(c *ui.Context, p palette) {
 		ui.Row(c).FillWidth().Padding(16, 15).Radius(15).
 			Background(ui.RGBA(37, 184, 107, 0.09)).Border(1, ui.RGBA(37, 184, 107, 0.18)).
 			Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(38, 38).Radius(12).Background(ui.RGBA(37, 184, 107, 0.15)).Center().Children(func() {
-				ui.Text(c, "✓").FontSize(18).FontWeight(750).TextColor(ui.Hex("#1b8e52"))
-			})
+			a.accountAvatar(c, p, 48, 15)
 			ui.Column(c).Grow(1).Gap(3).Children(func() {
-				ui.Text(c, "咪咕账号已连接").FontSize(14).FontWeight(680).TextColor(ui.Hex("#1b8e52"))
-				ui.Text(c, firstNonEmpty(a.authNotice, "账号有权限的曲目会使用当前的咪咕登录状态。")).
-					FontSize(11).TextColor(p.muted).LineHeight(1.45)
+				title := "咪咕账号已连接"
+				if a.miguProfile != nil && a.miguProfile.Nickname != "" {
+					title = a.miguProfile.Nickname
+				}
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, title).FontSize(15).FontWeight(700).SingleLine()
+					if level := a.miguProfileLevel(); level != "" {
+						ui.Box(c).Padding(3, 7).Radius(999).Background(p.accent.Alpha(0.1)).Children(func() {
+							ui.Text(c, level).FontSize(9.5).FontWeight(680).TextColor(p.accent).SingleLine()
+						})
+					}
+				})
+				ui.Text(c, "咪咕账号已连接").FontSize(10.5).FontWeight(650).TextColor(ui.Hex("#1b8e52"))
+				if meta := a.miguProfileMeta(); meta != "" {
+					ui.Text(c, meta).FontSize(10.5).TextColor(p.muted).SingleLine()
+				}
+				if a.miguProfile != nil && a.miguProfile.MedalName != "" {
+					ui.Text(c, "勋章 · "+a.miguProfile.MedalName).FontSize(10.5).TextColor(p.faint).SingleLine()
+				}
 			})
 		})
+
+		switch {
+		case a.miguProfile == nil && a.miguProfileLoading:
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Spinner(c).FontSize(13).TextColor(p.accent)
+				ui.Text(c, "正在读取账号资料…").FontSize(10.5).TextColor(p.muted)
+			})
+		case a.miguProfile == nil && a.miguProfileErr != "":
+			ui.Text(c, "账号资料暂时无法读取："+a.miguProfileErr).FontSize(10.5).TextColor(p.faint).
+				LineHeight(1.45)
+		}
+		if a.authNotice != "" {
+			ui.Text(c, a.authNotice).FontSize(10.5).TextColor(p.muted).LineHeight(1.45)
+		}
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 			a.primaryButton(c, "重新登录", iconSpark, func() {
@@ -790,6 +876,48 @@ func (a *app) accountConnectedPanel(c *ui.Context, p palette) {
 		ui.Text(c, "“已连接”只代表咪咕登录有效；实际可播放范围仍由账号会员状态和单曲版权决定。").
 			FontSize(10.5).TextColor(p.faint).LineHeight(1.5)
 	})
+}
+
+func (a *app) accountAvatar(c *ui.Context, p palette, size, radius float32) {
+	box := ui.Box(c).Size(size, size).Radius(radius).Clip()
+	if a.miguProfile != nil && a.miguProfile.AvatarURL != "" {
+		if src := a.arts[a.miguProfile.AvatarURL]; src != nil {
+			box.Background(p.panelAlt).Children(func() {
+				ui.Image(c, src).Fill().Fit(ui.Cover)
+			})
+			return
+		}
+		a.requestArt(a.miguProfile.AvatarURL)
+	}
+	box.Gradient(p.accent, p.accent2, 35).Center().Children(func() {
+		if a.miguProfile != nil && a.miguProfile.Nickname != "" {
+			ui.Text(c, miguProfileInitial(a.miguProfile.Nickname)).
+				FontSize(size * 0.36).FontWeight(750).TextColor(p.onAccent)
+			return
+		}
+		ui.Icon(c, iconSpark).Size(size*0.42, size*0.42).TextColor(p.onAccent)
+	})
+}
+
+func (a *app) miguProfileLevel() string {
+	if a.miguProfile == nil {
+		return ""
+	}
+	return a.miguProfile.LevelName
+}
+
+func (a *app) miguProfileMeta() string {
+	if a.miguProfile == nil {
+		return ""
+	}
+	var parts []string
+	if a.miguProfile.Phone != "" {
+		parts = append(parts, a.miguProfile.Phone)
+	}
+	if a.miguProfile.UserID != "" {
+		parts = append(parts, "UID "+a.miguProfile.UserID)
+	}
+	return strings.Join(parts, "  ·  ")
 }
 
 func (a *app) accountQRPanel(c *ui.Context, p palette) {
@@ -964,9 +1092,23 @@ func (a *app) columns(c *ui.Context, minWidth float32) int {
 }
 
 func (a *app) cover(c *ui.Context, rawURL, fallback string, radius float32) ui.Element {
-	a.requestArt(rawURL)
+	return a.coverPair(c, rawURL, "", fallback, radius)
+}
+
+func (a *app) coverPair(c *ui.Context, primary, secondary, fallback string, radius float32) ui.Element {
+	a.requestArt(primary)
+	if secondary != "" && secondary != primary {
+		a.requestArt(secondary)
+	}
 	box := ui.Box(c).Fill().Radius(radius).Clip()
-	if src := a.arts[rawURL]; src != nil {
+	var src ui.ImageSource
+	if primary != "" {
+		src = a.arts[primary]
+	}
+	if src == nil && secondary != "" {
+		src = a.arts[secondary]
+	}
+	if src != nil {
 		box.Children(func() {
 			ui.Image(c, src).Fill().Fit(ui.Cover)
 		})
@@ -1004,9 +1146,13 @@ func (a *app) cardPlayButton(c *ui.Context, p palette, key any, play func()) {
 }
 
 func (a *app) chip(c *ui.Context, label string, selected bool, onClick func()) ui.Element {
+	return a.chipLabeled(c, label, label, selected, onClick)
+}
+
+func (a *app) chipLabeled(c *ui.Context, label, accessible string, selected bool, onClick func()) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Key("chip-" + label).Height(30).PaddingX(13).Radius(999).
-		AlignItems(ui.Center).FocusRing(false).Label(label)
+	b := ui.ButtonBase(c).Key("chip-" + accessible).Height(30).PaddingX(13).Radius(999).
+		AlignItems(ui.Center).FocusRing(false).Label(accessible)
 	bg := t.Surface
 	color := t.TextMuted
 	if selected {

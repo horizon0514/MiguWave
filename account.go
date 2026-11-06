@@ -301,6 +301,9 @@ func (a *app) verifyMiguTokenValue(raw string, keepOnNetworkError bool) {
 			}
 			switch {
 			case err == nil:
+				if a.miguToken != token {
+					a.miguProfile = nil
+				}
 				a.miguToken = token
 				a.authPhase = miguAuthConnected
 				a.authQR = nil
@@ -310,6 +313,7 @@ func (a *app) verifyMiguTokenValue(raw string, keepOnNetworkError bool) {
 				} else {
 					a.authNotice = "咪咕账号已连接。"
 				}
+				a.loadMiguProfile(token)
 			case errors.Is(err, errMiguTokenStale):
 				a.authPhase = miguAuthInvalid
 				a.authQR = nil
@@ -376,6 +380,9 @@ func (a *app) clearMiguToken() {
 	a.authQR = nil
 	a.authPhase = miguAuthIdle
 	a.authNotice = ""
+	a.miguProfile = nil
+	a.miguProfileErr = ""
+	a.miguProfileLoading = false
 	if err := saveMiguToken(""); err != nil {
 		a.authNotice = "已清除当前登录状态，但系统凭据删除失败：" + friendlyError(err)
 	} else {
