@@ -6,6 +6,22 @@
 
 > 非咪咕官方客户端。接口来自咪咕网页端，可能随官方调整而失效。请使用自己的账号和会员权益，本应用不提供绕过付费墙或下载导出的能力。
 
+## 界面预览
+
+| 发现 | 沉浸式播放 |
+|:---:|:---:|
+| ![发现页](docs/screenshots/home.png) | ![沉浸式播放](docs/screenshots/song-stage.png) |
+
+| 搜索 | 排行榜 |
+|:---:|:---:|
+| ![搜索](docs/screenshots/search.png) | ![排行榜](docs/screenshots/rank.png) |
+
+<p align="center">
+  <img src="docs/screenshots/menu-bar.png" width="388" alt="菜单栏播放面板">
+  <br>
+  <sub>菜单栏 / 系统托盘播放面板</sub>
+</p>
+
 ## 安装
 
 发布包同时提供 macOS 通用应用与 Windows 安装包，可从 [Releases](https://github.com/horizon0514/MiguWave/releases) 下载。
