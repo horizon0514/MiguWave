@@ -261,6 +261,8 @@ func (a *app) menuBarView(c *ui.Context) {
 	theme.TextMuted = ui.RGBA(255, 255, 255, 0.6)
 	theme.Accent = ui.RGBA(255, 255, 255, 0.92)
 	theme.AccentText = songInk
+	theme.AccentHover = ui.RGBA(255, 255, 255, 0.98)
+	theme.AccentPressed = ui.RGBA(255, 255, 255, 0.82)
 	theme.Radius = 12
 	c.SetTheme(&theme)
 

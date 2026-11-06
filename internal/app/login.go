@@ -510,8 +510,8 @@ func (a *app) reloadLoginView() {
 	a.startBrowserLogin()
 }
 
-// connectMiguToken finishes either login flow: the token is remembered in the
-// keychain and the modal switches to its connected state.
+// connectMiguToken finishes either login flow: the token is written to the
+// local token file and the modal switches to its connected state.
 func (a *app) connectMiguToken(token string, validationErr error) {
 	token = migu.NormalizeToken(token)
 	if token == "" {
@@ -532,7 +532,7 @@ func (a *app) connectMiguToken(token string, validationErr error) {
 	case validationErr != nil:
 		a.authNotice = "已登录咪咕账号，但暂时无法完成在线校验：" + friendlyError(validationErr)
 	case migu.SaveToken(token) != nil:
-		a.authNotice = "已连接。令牌本次可用，但保存到系统钥匙串失败。"
+		a.authNotice = "已连接。令牌本次可用，但保存登录令牌失败。"
 	default:
 		a.authNotice = "已连接，账号有权限的曲目会使用你的咪咕登录状态。"
 	}

@@ -10,11 +10,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/egoist/mygo"
 )
 
 const (
@@ -638,10 +637,23 @@ func normalizeMiguToken(raw string) string {
 	return strings.Trim(raw, `"' `)
 }
 
-var (
-	miguSecretService = "Migu" + "Wave"
-	miguSecretKey     = "migu" + "-" + "pacmtoken"
-)
+// miguTokenDir resolves the directory holding the local login token.
+// It is a variable so tests can point it at a temporary directory.
+var miguTokenDir = func() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil || dir == "" {
+		return "", errors.New("找不到用户配置目录")
+	}
+	return filepath.Join(dir, "MiguWave"), nil
+}
+
+func miguTokenPath() (string, error) {
+	dir, err := miguTokenDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "auth.json"), nil
+}
 
 func loadMiguToken() string {
 	for _, key := range []string{"MIGU_PACTOKEN", "FREEWAVE_MIGU_TOKEN"} {
@@ -649,20 +661,41 @@ func loadMiguToken() string {
 			return token
 		}
 	}
-	token, err := mygo.Secrets.Service(miguSecretService).Get(miguSecretKey)
+	path, err := miguTokenPath()
 	if err != nil {
 		return ""
 	}
-	return normalizeMiguToken(string(token))
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return normalizeMiguToken(string(b))
 }
 
 func saveMiguToken(token string) error {
 	token = normalizeMiguToken(token)
-	store := mygo.Secrets.Service(miguSecretService)
-	if token == "" {
-		return store.Delete(miguSecretKey)
+	path, err := miguTokenPath()
+	if err != nil {
+		return err
 	}
-	return store.Set(miguSecretKey, []byte(token))
+	if token == "" {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(token+"\n"), 0o600); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp, 0o600); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 func firstNonEmpty(values ...string) string {

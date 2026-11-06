@@ -26,6 +26,8 @@ func (a *app) view(c *ui.Context) {
 	theme.TextMuted = p.muted
 	theme.Accent = p.accent
 	theme.AccentText = p.onAccent
+	theme.AccentHover = p.accent.Mix(ui.Hex("#ffffff"), 0.14)
+	theme.AccentPressed = p.accent.Mix(ui.Hex("#000000"), 0.12)
 	theme.Selection = p.accent.Alpha(0.26)
 	theme.Focus = p.accent.Alpha(0.55)
 	theme.Scrollbar = p.muted.Alpha(0.35)
@@ -39,6 +41,8 @@ func (a *app) view(c *ui.Context) {
 		theme.TextMuted = ui.RGBA(255, 255, 255, 0.56)
 		theme.Accent = songWhite
 		theme.AccentText = songInk
+		theme.AccentHover = ui.Hex("#f6f1f3")
+		theme.AccentPressed = ui.Hex("#eadfe4")
 		theme.Scrollbar = ui.RGBA(255, 255, 255, 0.18)
 	}
 	c.SetTheme(&theme)

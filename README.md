@@ -101,7 +101,7 @@ go tool mygo build -platform windows/amd64,windows/arm64
 ./scripts/build-local.sh --install
 ```
 
-脚本首次运行会在 `~/Library/Application Support/MiguWave/local-signing` 生成一次仅本机使用的代码签名身份，之后的本地构建都会复用它。不要把这个目录或其中的私钥用于发布。稳定的签名身份可以让 macOS 钥匙串辨认出更新后的同一个 App；第一次读取已保存令牌时如果弹出授权窗口，选择「始终允许」，以后重新构建就不会再要求输入登录密码。
+脚本首次运行会在 `~/Library/Application Support/MiguWave/local-signing` 生成一次仅本机使用的代码签名身份，之后的本地构建都会复用它。不要把这个目录或其中的私钥用于发布。稳定的签名身份可以让 macOS 认出更新后的同一个 App，避免重复的系统来源提示。
 
 ## 咪咕账号授权
 
@@ -112,21 +112,21 @@ go tool mygo build -platform windows/amd64,windows/arm64
 3. 也可以切到「手机扫码」，用咪咕音乐 App 扫描窗口中的二维码并在手机上确认。
 4. 还可以切到「令牌导入」，粘贴 `pacmtoken` 或包含它的完整 Cookie，或点「从剪贴板导入」。
 
-三种方式都会先在客户端内向咪咕校验，再把 `pacmtoken` 写入系统凭据存储（macOS 钥匙串 / Windows 凭据管理器）。应用内登录使用一次性网页会话：
+三种方式都会先在客户端内向咪咕校验，再把 `pacmtoken` 写入应用配置目录下的私有文件（权限 `0600`）。应用内登录使用一次性网页会话：
 
 - 关闭授权窗口或完成登录后，网页 Cookie 立即清除
 - 客户端不会读取、保存或回显咪咕账号密码
 - 令牌不会出现在日志、`state.json` 或界面中
 
-令牌优先保存在系统凭据存储：
+令牌优先保存在：
 
-- service：`MiguWave`
-- account：`migu-pacmtoken`
-- Windows 的目标名是 `MiguWave/migu-pacmtoken`，由 DPAPI 加密
+- macOS：`~/Library/Application Support/MiguWave/auth.json`
+- Windows：`%APPDATA%\MiguWave\auth.json`
+- 文件权限为 `0600`，只保存 `pacmtoken`，不保存账号密码
 
-咪咕昵称、头像、手机号等账号资料只在应用运行期间从咪咕接口读取并保存在内存中，不写入 `state.json`；重新启动后会使用钥匙串里的令牌重新获取。
+咪咕昵称、头像、手机号等账号资料只在应用运行期间从咪咕接口读取并保存在内存中，不写入 `state.json`；重新启动后会使用本地令牌文件重新获取。
 
-也可以通过环境变量临时提供，优先级高于系统凭据存储：
+也可以通过环境变量临时提供，优先级高于本地令牌文件：
 
 ```bash
 MIGU_PACTOKEN=你的令牌 go tool mygo dev
@@ -155,7 +155,7 @@ MIGU_PACTOKEN=你的令牌 go tool mygo dev
 
 - 音频缓存最多保留 2 GB，超过后自动删除最旧的曲目
 - 超过 30 天的音频和超过 24 小时的未完成下载会在启动时清理
-- 登录令牌只写入系统凭据存储；应用不会读取或保存咪咕账号密码
+- 登录令牌只写入权限为 `0600` 的本地配置文件；应用不会读取或保存咪咕账号密码
 - 自建歌单名称和歌曲顺序只写入本机，不会上传到咪咕
 - 播放时需要向咪咕请求曲目信息和临时播放地址，除此之外不上传本地数据
 
@@ -164,18 +164,17 @@ MIGU_PACTOKEN=你的令牌 go tool mygo dev
 macOS：
 
 1. 退出应用，把「MiguWave」从「应用程序」移到废纸篓。
-2. 可选：删除配置、缓存和钥匙串授权。
+2. 可选：删除配置和缓存。
 
 ```bash
 rm -rf "$HOME/Library/Application Support/MiguWave"
 rm -rf "$HOME/Library/Caches/MiguWave"
-security delete-generic-password -s MiguWave -a migu-pacmtoken
 ```
 
 Windows：
 
 1. 在「设置 → 应用 → 已安装的应用」中卸载「MiguWave」。
-2. 可选：删除 `%APPDATA%\MiguWave` 和 `%LOCALAPPDATA%\MiguWave`，并在「凭据管理器 → Windows 凭据」中删除 `MiguWave/migu-pacmtoken`。
+2. 可选：删除 `%APPDATA%\MiguWave` 和 `%LOCALAPPDATA%\MiguWave`。
 
 ## 测试
 

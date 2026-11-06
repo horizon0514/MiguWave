@@ -15,7 +15,7 @@ func pageScroll(c *ui.Context, key string, gap float32, build func()) {
 }
 
 func (a *app) homePage(c *ui.Context, p palette) {
-	pageScroll(c, "home", 30, func() {
+	pageScroll(c, "home", 24, func() {
 		a.hero(c, p)
 
 		searches := a.hotSearches
@@ -103,48 +103,44 @@ func (a *app) homePage(c *ui.Context, p palette) {
 
 func (a *app) hero(c *ui.Context, p palette) {
 	track, tracks, index := a.heroTrack()
-	card := ui.Box(c).FillWidth().Height(286).Radius(20).Clip().
-		Gradient(p.accent, p.accent2, 32).Shadow(0, 18, 40, -18, p.accent.Alpha(0.45))
+	card := ui.Box(c).FillWidth().Height(160).Radius(16).Clip().
+		Gradient(p.accent, p.accent2, 32).Shadow(0, 12, 28, -18, p.accent.Alpha(0.34))
 	card.Children(func() {
 		ui.Box(c).Fill().Draw(func(pt *ui.Painter, r ui.Rect) {
-			pt.Fill(ui.Rect{X: r.X + r.W*0.57, Y: r.Y - 90, W: 260, H: 260},
+			pt.Fill(ui.Rect{X: r.X + r.W*0.57, Y: r.Y - 70, W: 170, H: 170},
 				ui.RGBA(255, 255, 255, 0.08), 999)
-			pt.Fill(ui.Rect{X: r.X + r.W*0.78, Y: r.Y + 130, W: 190, H: 190},
+			pt.Fill(ui.Rect{X: r.X + r.W*0.78, Y: r.Y + 72, W: 120, H: 120},
 				ui.RGBA(255, 255, 255, 0.07), 999)
 		})
-		ui.Row(c).Fill().Padding(30, 32, 26, 38).AlignItems(ui.Center).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Gap(10).Children(func() {
-				ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
-					ui.Box(c).Size(24, 24).Radius(8).Background(ui.RGBA(255, 255, 255, 0.18)).
+		ui.Row(c).Fill().Padding(12, 22, 12, 26).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(18, 18).Radius(6).Background(ui.RGBA(255, 255, 255, 0.18)).
 						Center().Children(func() {
-						ui.Icon(c, iconMusic).Size(12, 12).TextColor(p.onAccent)
+						ui.Icon(c, iconMusic).Size(10, 10).TextColor(p.onAccent)
 					})
-					ui.Text(c, "MIGU MUSIC · 今日推荐").FontSize(10.5).FontWeight(750).
-						LetterSpacing(1.4).TextColor(ui.RGBA(255, 255, 255, 0.78))
+					ui.Text(c, "MIGU MUSIC · 今日推荐").FontSize(9.5).FontWeight(750).
+						LetterSpacing(1.2).TextColor(ui.RGBA(255, 255, 255, 0.76))
 				})
 				title := "把今天交给音乐"
 				subtitle := "咪咕热歌、新歌与会员曲库，都在这里。"
-				meta := ""
 				if track != nil {
 					title = track.Title
 					subtitle = track.Artist
 					if track.Album != "" {
-						meta = track.Album
+						subtitle = joinMeta(subtitle, track.Album)
 					}
 					if track.VIP {
-						meta = firstNonEmpty(joinMeta(meta, "VIP 曲目"), "VIP 曲目")
+						subtitle = joinMeta(subtitle, "VIP 曲目")
 					}
 				}
-				ui.Text(c, title).FontSize(34).FontWeight(780).LetterSpacing(-0.9).
+				ui.Text(c, title).FontSize(22).FontWeight(770).LetterSpacing(-0.45).
 					TextColor(p.onAccent).MaxLines(2).LineHeight(1.08)
 				if subtitle != "" {
-					ui.Text(c, subtitle).FontSize(14).FontWeight(520).
-						TextColor(ui.RGBA(255, 255, 255, 0.82)).SingleLine()
+					ui.Text(c, subtitle).FontSize(11.5).FontWeight(520).
+						TextColor(ui.RGBA(255, 255, 255, 0.76)).SingleLine()
 				}
-				if meta != "" {
-					ui.Text(c, meta).FontSize(11.5).TextColor(ui.RGBA(255, 255, 255, 0.62)).SingleLine()
-				}
-				ui.Row(c).Gap(9).Margin(8, 0, 0, 0).Children(func() {
+				ui.Row(c).Gap(7).Margin(2, 0, 0, 0).Children(func() {
 					a.heroButton(c, "立即播放", iconPlay, func() {
 						if track != nil {
 							a.playTracks(tracks, index)
@@ -156,9 +152,9 @@ func (a *app) hero(c *ui.Context, p palette) {
 					})
 				})
 			})
-			ui.Box(c).WidthPercent(30).FillHeight().Center().Children(func() {
-				cover := ui.Box(c).Size(208, 208).Radius(18).Clip().
-					Shadow(0, 20, 38, -10, ui.RGBA(71, 9, 31, 0.38))
+			ui.Box(c).WidthPercent(24).FillHeight().Center().Children(func() {
+				cover := ui.Box(c).Size(112, 112).Radius(13).Clip().
+					Shadow(0, 12, 24, -9, ui.RGBA(71, 9, 31, 0.32))
 				cover.Children(func() {
 					title := "MiguWave"
 					raw, low := "", ""
@@ -167,7 +163,7 @@ func (a *app) hero(c *ui.Context, p palette) {
 						raw = a.hqCover(*track)
 						low = track.Cover
 					}
-					a.coverPair(c, raw, low, title, 18)
+					a.coverPair(c, raw, low, title, 13)
 				})
 				cover.Rotate(-2.5)
 			})
@@ -189,17 +185,17 @@ func (a *app) heroTrack() (*Track, []Track, int) {
 }
 
 func (a *app) heroButton(c *ui.Context, label string, ic *ui.SVG, onClick func()) {
-	b := ui.ButtonBase(c).Key("hero-" + label).Height(38).PaddingX(19).Radius(999).
-		Gap(8).AlignItems(ui.Center).FocusRing(false).Label(label).
+	b := ui.ButtonBase(c).Key("hero-" + label).Height(30).PaddingX(15).Radius(999).
+		Gap(7).AlignItems(ui.Center).FocusRing(false).Label(label).
 		Background(ui.Hex("#ffffff")).TextColor(ui.Hex("#ff2667"))
 	if b.Hovered() {
 		b.Background(ui.Hex("#fff0f5"))
 	}
 	b.Children(func() {
 		if ic != nil {
-			ui.Icon(c, ic).Size(15, 15).TextColor(ui.Hex("#ff2667"))
+			ui.Icon(c, ic).Size(13, 13).TextColor(ui.Hex("#ff2667"))
 		}
-		ui.Text(c, label).FontSize(12.5).FontWeight(700).TextColor(ui.Hex("#ff2667"))
+		ui.Text(c, label).FontSize(11.5).FontWeight(700).TextColor(ui.Hex("#ff2667"))
 	})
 	if b.Clicked() {
 		onClick()
@@ -207,17 +203,17 @@ func (a *app) heroButton(c *ui.Context, label string, ic *ui.SVG, onClick func()
 }
 
 func (a *app) heroGhostButton(c *ui.Context, label string, ic *ui.SVG, onClick func()) {
-	b := ui.ButtonBase(c).Key("hero-ghost-"+label).Height(38).PaddingX(17).Radius(999).
-		Gap(8).AlignItems(ui.Center).FocusRing(false).Label(label).
+	b := ui.ButtonBase(c).Key("hero-ghost-"+label).Height(30).PaddingX(13).Radius(999).
+		Gap(7).AlignItems(ui.Center).FocusRing(false).Label(label).
 		Background(ui.RGBA(255, 255, 255, 0.12)).Border(1, ui.RGBA(255, 255, 255, 0.25))
 	if b.Hovered() {
 		b.Background(ui.RGBA(255, 255, 255, 0.18))
 	}
 	b.Children(func() {
 		if ic != nil {
-			ui.Icon(c, ic).Size(15, 15).TextColor(ui.Hex("#ffffff"))
+			ui.Icon(c, ic).Size(13, 13).TextColor(ui.Hex("#ffffff"))
 		}
-		ui.Text(c, label).FontSize(12.5).FontWeight(600).TextColor(ui.Hex("#ffffff"))
+		ui.Text(c, label).FontSize(11.5).FontWeight(600).TextColor(ui.Hex("#ffffff"))
 	})
 	if b.Clicked() {
 		onClick()
@@ -682,7 +678,7 @@ func (a *app) accountModal(c *ui.Context, p palette) {
 			}
 
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "令牌只保存在系统安全存储（钥匙串 / 凭据管理器），不写入普通配置文件。").
+				ui.Text(c, "令牌只保存在本机配置文件（权限 0600），不写入日志或界面。").
 					FontSize(10).TextColor(p.faint).Grow(1)
 				if a.miguToken != "" {
 					a.ghostButton(c, "清除授权", nil, a.clearMiguToken)

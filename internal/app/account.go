@@ -386,7 +386,7 @@ func (a *app) clearMiguToken() {
 	a.miguProfileErr = ""
 	a.miguProfileLoading = false
 	if err := migu.SaveToken(""); err != nil {
-		a.authNotice = "已清除当前登录状态，但系统凭据删除失败：" + friendlyError(err)
+		a.authNotice = "已清除当前登录状态，但本地令牌删除失败：" + friendlyError(err)
 	} else {
 		a.authNotice = "授权已清除，现在只播放公开可用的曲目。"
 	}
