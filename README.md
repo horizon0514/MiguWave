@@ -53,6 +53,17 @@ xattr -dr com.apple.quarantine /Applications/MiguWave.app
 - 开机启动：登录后静默驻留菜单栏 / 托盘，不主动打开完整窗口
 - 浅色 / 深色模式跟随系统
 
+## 代码结构
+
+```text
+main.go              进程入口，只负责启动桌面应用
+internal/app         桌面界面、应用状态、播放调度、窗口与菜单栏 / 托盘
+internal/migu        咪咕 API 客户端、数据模型、授权与歌曲详情
+internal/lyrics      LRC / MRC 解析、歌词头部清洗与逐字时间轴
+```
+
+界面层只消费 `migu` 和 `lyrics` 暴露的类型与函数；网络接口、歌词格式处理不放在 UI 文件里。
+
 ## 运行
 
 需要 Go 1.27+，不需要 `yt-dlp` 或 `ffmpeg`。
