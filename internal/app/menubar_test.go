@@ -1,6 +1,8 @@
 package app
 
 import (
+	"bytes"
+	"image/png"
 	"testing"
 	"time"
 
@@ -69,5 +71,27 @@ func TestShouldShowMainOnActivate(t *testing.T) {
 				t.Fatalf("shouldShowMainOnActivate() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMenuBarPlaybackIcons(t *testing.T) {
+	staticIcon := menuBarIcon()
+	seen := map[string]bool{}
+	for i, icon := range menuBarPlaybackIcons {
+		if bytes.Equal(icon, staticIcon) {
+			t.Fatalf("frame %d matches the static icon", i)
+		}
+		if seen[string(icon)] {
+			t.Fatalf("frame %d duplicates an earlier frame", i)
+		}
+		seen[string(icon)] = true
+
+		img, err := png.Decode(bytes.NewReader(icon))
+		if err != nil {
+			t.Fatalf("frame %d is not a PNG: %v", i, err)
+		}
+		if got := img.Bounds().Size(); got.X != 32 || got.Y != 32 {
+			t.Fatalf("frame %d is %v, want 32x32", i, got)
+		}
 	}
 }

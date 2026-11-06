@@ -50,6 +50,7 @@ func Run() error {
 	})
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+		a.stopMenuBarAnimation()
 		if a.tray != nil {
 			a.tray.Destroy()
 		}

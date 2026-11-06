@@ -42,6 +42,10 @@ func (a *app) setupMenuBar() {
 		tray.SetMenu(a.menuBarMenu())
 		return
 	}
+	a.menuBarFrames = make(chan bool, 1)
+	a.menuBarStop = make(chan struct{})
+	go animateMenuBarIcon(tray, a.menuBarFrames, a.menuBarStop)
+
 	tray.OnClick(a.toggleMenuBarPanel)
 	tray.OnRightClick(func() {
 		a.noteMenuBarUse()
@@ -50,6 +54,69 @@ func (a *app) setupMenuBar() {
 		defer tray.SetMenu(nil)
 		tray.PopUpMenu()
 	})
+}
+
+func (a *app) setMenuBarPlaying(playing bool) {
+	if a.menuBarFrames == nil {
+		return
+	}
+	select {
+	case <-a.menuBarFrames:
+	default:
+	}
+	select {
+	case a.menuBarFrames <- playing:
+	default:
+	}
+}
+
+func (a *app) stopMenuBarAnimation() {
+	if a.menuBarStop != nil {
+		close(a.menuBarStop)
+		a.menuBarStop = nil
+	}
+	a.menuBarFrames = nil
+}
+
+func animateMenuBarIcon(tray *mygo.Tray, frames <-chan bool, stop <-chan struct{}) {
+	const frameDuration = 150 * time.Millisecond
+
+	ticker := time.NewTicker(frameDuration)
+	ticker.Stop()
+	defer ticker.Stop()
+
+	playing := false
+	frame := 0
+	setIcon := func(icon []byte) {
+		_ = tray.SetIcon(icon, true)
+	}
+
+	for {
+		select {
+		case <-stop:
+			setIcon(menuBarIcon())
+			return
+		case next := <-frames:
+			if next == playing {
+				continue
+			}
+			playing = next
+			if !playing {
+				ticker.Stop()
+				setIcon(menuBarIcon())
+				continue
+			}
+			frame = 0
+			setIcon(menuBarPlaybackIcons[frame])
+			ticker.Reset(frameDuration)
+		case <-ticker.C:
+			if !playing {
+				continue
+			}
+			frame = (frame + 1) % len(menuBarPlaybackIcons)
+			setIcon(menuBarPlaybackIcons[frame])
+		}
+	}
 }
 
 func (a *app) noteMenuBarUse() {
@@ -576,16 +643,34 @@ func firstLyricLine(lines []lyricLine, start int) int {
 }
 
 func menuBarIcon() []byte {
+	return encodeMenuBarIcon([4]int{12, 21, 15, 8})
+}
+
+var menuBarPlaybackIcons = func() [][]byte {
+	heights := [][4]int{
+		{10, 20, 14, 8},
+		{16, 12, 21, 13},
+		{21, 16, 9, 18},
+		{13, 22, 17, 10},
+		{9, 14, 20, 22},
+		{17, 9, 12, 16},
+	}
+	icons := make([][]byte, len(heights))
+	for i, bars := range heights {
+		icons[i] = encodeMenuBarIcon(bars)
+	}
+	return icons
+}()
+
+func encodeMenuBarIcon(heights [4]int) []byte {
+	const bottom = 26
 	img := image.NewNRGBA(image.Rect(0, 0, 32, 32))
 	ink := color.NRGBA{A: 255}
-	for _, bar := range []image.Rectangle{
-		image.Rect(5, 12, 9, 23),
-		image.Rect(11, 6, 15, 27),
-		image.Rect(17, 9, 21, 24),
-		image.Rect(23, 14, 27, 21),
-	} {
-		for y := bar.Min.Y; y < bar.Max.Y; y++ {
-			for x := bar.Min.X; x < bar.Max.X; x++ {
+	for i, height := range heights {
+		left := 5 + i*6
+		top := bottom - height
+		for y := top; y < bottom; y++ {
+			for x := left; x < left+4; x++ {
 				img.Set(x, y, ink)
 			}
 		}

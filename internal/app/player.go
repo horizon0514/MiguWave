@@ -378,6 +378,9 @@ func (p *player) ended(gen int) {
 }
 
 func (p *player) syncNowPlaying(art []byte) {
+	if p.app != nil {
+		p.app.setMenuBarPlaying(p.playing)
+	}
 	if !p.hasCurrent {
 		mygo.NowPlaying.Clear()
 		return
