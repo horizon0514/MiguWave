@@ -345,7 +345,7 @@ func (a *app) songLeftPane(c *ui.Context, p songColors, track Track, cover, albu
 		ui.Box(c).Margin(11, 0, 0, 0).Children(func() {
 			a.songTransport(c, track)
 		})
-		ui.Row(c).Justify(ui.Center).AlignItems(ui.Center).Margin(9, 0, 0, 0).
+		ui.Row(c).Justify(ui.Center).AlignItems(ui.Center).Gap(8).Margin(9, 0, 0, 0).
 			Children(func() {
 				a.songVolume(c)
 			})
