@@ -3,6 +3,7 @@ package migu
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -26,8 +27,10 @@ func TestMiguTokenFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat token file: %v", err)
 	}
-	if mode := info.Mode().Perm(); mode != 0o600 {
-		t.Fatalf("token file mode = %o, want 600", mode)
+	if runtime.GOOS != "windows" {
+		if mode := info.Mode().Perm(); mode != 0o600 {
+			t.Fatalf("token file mode = %o, want 600", mode)
+		}
 	}
 	if token := loadMiguToken(); token != "abc123" {
 		t.Fatalf("load token = %q, want abc123", token)
