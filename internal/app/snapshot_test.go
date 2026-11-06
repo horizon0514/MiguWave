@@ -58,6 +58,18 @@ func TestSnapshots(t *testing.T) {
 	save("home", home, false)
 	save("home-dark", home, true)
 
+	queue := testApp()
+	queue.home.NewSongs = tracks
+	queue.pl.queue = append([]Track(nil), tracks...)
+	queue.pl.at = 0
+	queue.pl.current = tracks[0]
+	queue.pl.hasCurrent = true
+	queue.pl.duration = tracks[0].Duration()
+	queue.playerQueueOpen = true
+	seedSnapshotArt(t, queue)
+	save("player-queue", queue, false)
+	save("player-queue-dark", queue, true)
+
 	rank := testApp()
 	rank.page = pageRank
 	rank.rank = sampleRank()

@@ -64,6 +64,7 @@ func (a *app) openSong(track Track, queue []Track, index int) {
 	if strings.TrimSpace(track.ID) == "" {
 		return
 	}
+	a.playerQueueOpen = false
 	if index < 0 || index >= len(queue) || queue[index].ID != track.ID {
 		queue = []Track{track}
 		index = 0
@@ -525,6 +526,15 @@ func (a *app) songTransport(c *ui.Context, track Track) {
 					a.pl.repeat = (a.pl.repeat + 1) % 3
 					a.refresh()
 				}
+			})
+		a.songIconButton(c, "song-queue", iconPlaylist, "查看待播清单",
+			a.songPane == songPaneQueue, 18, func() {
+				if a.songPane == songPaneQueue {
+					a.songPane = songPaneLyrics
+				} else {
+					a.songPane = songPaneQueue
+				}
+				a.refresh()
 			})
 	})
 }

@@ -372,6 +372,14 @@ func (p *player) prev() {
 	p.load()
 }
 
+func (p *player) jumpTo(index int) {
+	if index < 0 || index >= len(p.queue) {
+		return
+	}
+	p.at = index
+	p.load()
+}
+
 func (p *player) seek(pos time.Duration) {
 	if p.out == nil {
 		p.pending = max(0, pos)

@@ -12,6 +12,7 @@ import (
 const (
 	sidebarWidth      = 232
 	pageTopDragHeight = 36
+	playerBarHeight   = 88
 )
 
 // shellTint fades the window chrome over the native vibrancy material and
@@ -277,10 +278,10 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 		return
 	}
 	cur := pl.current
-	ui.Row(c).Height(88).PaddingX(22).Gap(18).Background(shellTint(c, p.bg, 0.88)).
+	ui.Row(c).Height(playerBarHeight).PaddingX(22).Gap(18).Background(shellTint(c, p.bg, 0.88)).
 		BorderWidth(1, 0, 0, 0).BorderColor(p.line).AlignItems(ui.Center).Children(func() {
 		ui.Row(c).Width(310).Gap(6).AlignItems(ui.Center).Children(func() {
-			info := ui.ButtonBase(c).Key("player-info").Grow(1).MinWidth(0).Padding(2, 4).Radius(8).
+			info := ui.ButtonBase(c).Key("player-info").MinWidth(0).MaxWidth(240).Padding(2, 4).Radius(8).
 				Gap(10).AlignItems(ui.Center).FocusRing(false).Label("查看歌曲详情")
 			if info.Hovered() && pl.hasCurrent {
 				info.Background(p.hover)
@@ -293,7 +294,7 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 					}
 					a.cover(c, cur.Cover, title, 8)
 				})
-				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
+				ui.Column(c).Shrink(1).MinWidth(0).Gap(3).Children(func() {
 					title := "还没有播放"
 					if pl.hasCurrent {
 						title = cur.Title
@@ -323,6 +324,7 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 			if info.Clicked() && pl.hasCurrent {
 				a.openSong(cur, pl.queue, pl.at)
 			}
+			ui.Spacer(c)
 			if pl.hasCurrent {
 				fav := a.isFavorite(cur.ID)
 				ic := iconHeart
@@ -394,6 +396,7 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 		})
 
 		ui.Row(c).Width(200).Justify(ui.End).Gap(7).AlignItems(ui.Center).Children(func() {
+			a.playerQueueButton(c, p)
 			ic := iconVolume
 			if a.volume <= 0.01 {
 				ic = iconVolumeOff

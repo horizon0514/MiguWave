@@ -180,6 +180,10 @@ type app struct {
 	lyricTrack  string
 	lyricAt     int
 
+	playerQueueOpen bool
+	playerQueueAt   int
+	playerQueueList ui.ListState
+
 	scrub       float64
 	scrubHeld   bool
 	scrubActive bool
