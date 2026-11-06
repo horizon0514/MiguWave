@@ -250,23 +250,29 @@ func TestSnapshots(t *testing.T) {
 	save("settings-dark", settings, true)
 
 	menuBar := testApp()
-	menuBar.menuDetailID = tracks[0].ID
+	menuBarTrack := tracks[0]
+	menuBarTrack.Cover = "snap://s-1"
+	menuBarTrack.CoverHQ = "snap://s-1"
+	menuBar.menuDetailID = menuBarTrack.ID
 	menuBar.menuDetail = miguSongDetail{
-		Track: tracks[0],
-		Cover: tracks[0].Cover,
+		Track: menuBarTrack,
+		Cover: menuBarTrack.Cover,
 		Lyrics: []lyricLine{
 			{At: 0, Text: "故事的小黄花", Timed: true},
 			{At: 8 * time.Second, Text: "从出生那年就飘着", Timed: true},
 			{At: 16 * time.Second, Text: "童年的荡秋千", Timed: true},
 		},
 	}
-	menuBar.pl.current = tracks[0]
+	menuBar.pl.current = menuBarTrack
 	menuBar.pl.hasCurrent = true
 	menuBar.pl.playing = true
-	menuBar.pl.duration = tracks[0].Duration()
+	menuBar.pl.duration = menuBarTrack.Duration()
 	seedSnapshotArt(t, menuBar)
-	saveView("menu-bar", menuBar.menuBarView, 388, 322, false)
-	saveView("menu-bar-dark", menuBar.menuBarView, 388, 322, true)
+	saveView("menu-bar", menuBar.menuBarView, 420, 536, false)
+	saveView("menu-bar-dark", menuBar.menuBarView, 420, 536, true)
+
+	menuBarEmpty := testApp()
+	saveView("menu-bar-empty", menuBarEmpty.menuBarView, 420, 536, true)
 }
 
 func samplePlaylists() []miguPlaylist {
@@ -359,11 +365,15 @@ func seedSnapshotArt(t *testing.T, a *app) {
 		"snap://s-1", "snap://s-2", "snap://s-3", "snap://s-4", "snap://s-5",
 		"snap://r-1", "snap://r-2", "snap://r-3", "snap://r-4", "snap://r-5"}
 	for i, raw := range urls {
-		a.arts[raw] = snapshotGradient(t, colors[i%len(colors)].a, colors[i%len(colors)].b)
+		c := colors[i%len(colors)]
+		src, img := snapshotGradient(t, c.a, c.b)
+		a.arts[raw] = src
+		a.artTints[raw] = coverTint(img)
+		a.artBackdrops[raw] = ui.NewBitmap(coverBlur(img))
 	}
 }
 
-func snapshotGradient(t *testing.T, from, to color.RGBA) ui.ImageSource {
+func snapshotGradient(t *testing.T, from, to color.RGBA) (ui.ImageSource, *image.RGBA) {
 	t.Helper()
 	const size = 480
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
@@ -387,7 +397,7 @@ func snapshotGradient(t *testing.T, from, to color.RGBA) ui.ImageSource {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return src
+	return src, img
 }
 
 func snapshotQRCode(t *testing.T) ui.ImageSource {

@@ -314,26 +314,26 @@ func (a *app) rankPage(c *ui.Context, p palette) {
 
 func (a *app) rankHero(c *ui.Context, p palette) {
 	rank := a.rank
-	card := ui.Box(c).FillWidth().Height(226).Radius(18).Clip().
-		Gradient(p.accent, p.accent2, 24).Shadow(0, 14, 34, -16, p.accent.Alpha(0.42))
+	card := ui.Box(c).FillWidth().Height(126).Radius(16).Clip().
+		Gradient(p.accent, p.accent2, 24).Shadow(0, 8, 20, -14, p.accent.Alpha(0.2))
 	card.Children(func() {
-		ui.Row(c).Fill().Padding(24, 28).Gap(24).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(156, 156).Radius(14).Clip().Children(func() {
-				a.cover(c, rank.Cover, rank.Title, 14)
+		ui.Row(c).Fill().Padding(17, 22).Gap(18).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(92, 92).Radius(12).Clip().Children(func() {
+				a.cover(c, rank.Cover, rank.Title, 12)
 			})
-			ui.Column(c).Grow(1).MinWidth(0).Gap(7).Children(func() {
-				ui.Text(c, "MIGU CHART").FontSize(10).FontWeight(760).LetterSpacing(1.4).
-					TextColor(ui.RGBA(255, 255, 255, 0.7))
+			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+				ui.Text(c, "MIGU CHART").FontSize(9).FontWeight(760).LetterSpacing(1.3).
+					TextColor(ui.RGBA(255, 255, 255, 0.66))
 				title := rank.Title
 				if title == "" {
 					title = rankTitle(a.rankID)
 				}
-				ui.Text(c, title).FontSize(28).FontWeight(760).LetterSpacing(-0.5).
+				ui.Text(c, title).FontSize(22).FontWeight(760).LetterSpacing(-0.4).
 					TextColor(p.onAccent).SingleLine()
 				desc := strings.TrimSpace(rank.Description)
 				if desc != "" {
-					ui.Text(c, desc).FontSize(12).TextColor(ui.RGBA(255, 255, 255, 0.8)).
-						MaxLines(2).LineHeight(1.5).MaxWidth(660)
+					ui.Text(c, desc).FontSize(11.5).TextColor(ui.RGBA(255, 255, 255, 0.78)).
+						MaxLines(1).MaxWidth(760)
 				}
 				meta := ""
 				if rank.UpdateTime != "" {
@@ -343,7 +343,7 @@ func (a *app) rankHero(c *ui.Context, p palette) {
 					meta = joinMeta(meta, fmt.Sprintf("%d 首", len(rank.Tracks)))
 				}
 				if meta != "" {
-					ui.Text(c, meta).FontSize(11).TextColor(ui.RGBA(255, 255, 255, 0.62))
+					ui.Text(c, meta).FontSize(10.5).TextColor(ui.RGBA(255, 255, 255, 0.58))
 				}
 			})
 		})

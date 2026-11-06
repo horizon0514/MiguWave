@@ -38,6 +38,7 @@ type app struct {
 
 	tray          *mygo.Tray
 	menuBarPanel  *mygo.Window
+	menuBarUsedAt time.Time
 	quitting      bool
 	closeAction   closeAction
 	launchAtLogin bool

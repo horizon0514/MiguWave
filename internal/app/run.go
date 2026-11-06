@@ -46,9 +46,7 @@ func Run() error {
 		a.showMainWindow()
 	})
 	mygo.App.OnActivate(func(hasVisibleWindows bool) {
-		if !hasVisibleWindows {
-			a.showMainWindow()
-		}
+		a.handleAppActivate(hasVisibleWindows)
 	})
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {

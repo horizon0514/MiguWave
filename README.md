@@ -17,7 +17,7 @@
 | ![搜索](docs/screenshots/search.png) | ![排行榜](docs/screenshots/rank.png) |
 
 <p align="center">
-  <img src="docs/screenshots/menu-bar.png" width="388" alt="菜单栏播放面板">
+  <img src="docs/screenshots/menu-bar.png" width="420" alt="菜单栏播放面板">
   <br>
   <sub>菜单栏 / 系统托盘播放面板</sub>
 </p>
