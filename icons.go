@@ -35,4 +35,5 @@ var (
 	iconPlus       = icon(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" d="M12 5v14M5 12h14"/></svg>`)
 	iconMinus      = icon(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" d="M5 12h14"/></svg>`)
 	iconMore       = icon(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg>`)
+	iconSettings   = icon(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15.5a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7Zm8-3.5c0-.7-.1-1.3-.3-1.9l2-1.6l-2-3.4l-2.4 1a8 8 0 0 0-3.3-1.9L13.6 2h-4l-.4 2.7A8 8 0 0 0 5.9 6.6l-2.4-1l-2 3.4l2 1.6a8 8 0 0 0 0 3.8l-2 1.6l2 3.4l2.4-1a8 8 0 0 0 3.3 1.9l.4 2.7h4l.4-2.7a8 8 0 0 0 3.3-1.9l2.4 1l2-3.4l-2-1.6c.2-.6.3-1.2.3-1.9Z"/></svg>`)
 )

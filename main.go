@@ -9,6 +9,11 @@ import (
 )
 
 func main() {
+	mygo.App.SetName("MiguWave")
+	if !mygo.App.RequestSingleInstanceLock() {
+		return
+	}
+
 	go func() {
 		_, _ = cleanAudioCache(audioCacheDir(), time.Now(), audioCacheMaxBytes)
 	}()
@@ -16,6 +21,7 @@ func main() {
 	saved := loadSaved()
 	a := &app{
 		volume:         saved.Volume,
+		closeAction:    saved.CloseAction,
 		favorites:      saved.Favorites,
 		recent:         saved.Recent,
 		savedPlaylists: saved.SavedPlaylists,
@@ -34,7 +40,25 @@ func main() {
 	}
 	a.pl = newPlayer(a)
 
+	mygo.App.OnSecondInstance(func([]string, string) {
+		a.showMainWindow()
+	})
+	mygo.App.OnActivate(func(hasVisibleWindows bool) {
+		if !hasVisibleWindows {
+			a.showMainWindow()
+		}
+	})
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
+	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+		if a.tray != nil {
+			a.tray.Destroy()
+		}
+	})
+	mygo.App.OnWindowAllClosed(func() {})
+
 	mygo.App.WhenReady(func() {
+		a.launchAtLogin = mygo.App.OpenAtLogin()
+		openAtLogin := mygo.App.WasOpenedAtLogin()
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:         "MiguWave",
 			Width:         1240,
@@ -44,10 +68,16 @@ func main() {
 			TitleBarStyle: mygo.TitleBarHiddenInset,
 			StateKey:      "main",
 			Content:       ui.View(a.view),
+			Hidden:        openAtLogin,
 		})
-		a.win = win
+		a.attachWindow(win)
 		a.start()
-		win.Show()
+		a.setupMenuBar()
+		if openAtLogin {
+			a.setDockVisible(false)
+		} else {
+			win.Show()
+		}
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)

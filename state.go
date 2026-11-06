@@ -13,8 +13,16 @@ import (
 	"time"
 )
 
+type closeAction string
+
+const (
+	closeActionMenuBar closeAction = "menu"
+	closeActionQuit    closeAction = "quit"
+)
+
 type savedState struct {
 	Volume         float64         `json:"volume"`
+	CloseAction    closeAction     `json:"closeAction,omitempty"`
 	Favorites      []Track         `json:"favorites,omitempty"`
 	Recent         []Track         `json:"recent,omitempty"`
 	SavedPlaylists []miguPlaylist  `json:"savedPlaylists,omitempty"`
@@ -35,7 +43,7 @@ func statePath() string {
 
 // loadSaved reads favorites and recent plays, ignoring a missing file.
 func loadSaved() savedState {
-	s := savedState{Volume: 0.8}
+	s := savedState{Volume: 0.8, CloseAction: closeActionMenuBar}
 	b, err := os.ReadFile(statePath())
 	if err != nil {
 		return s
@@ -44,6 +52,7 @@ func loadSaved() savedState {
 	if s.Volume < 0 || s.Volume > 1 {
 		s.Volume = 0.8
 	}
+	s.CloseAction = normalizeCloseAction(s.CloseAction)
 	if s.Favorites == nil {
 		s.Favorites = []Track{}
 	}
@@ -64,10 +73,18 @@ func loadSaved() savedState {
 	return s
 }
 
+func normalizeCloseAction(action closeAction) closeAction {
+	if action == closeActionQuit {
+		return closeActionQuit
+	}
+	return closeActionMenuBar
+}
+
 // save writes the library to disk atomically enough for a desktop app.
 func (a *app) save() {
 	s := savedState{
 		Volume:         a.volume,
+		CloseAction:    normalizeCloseAction(a.closeAction),
 		Favorites:      a.favorites,
 		Recent:         a.recent,
 		SavedPlaylists: a.savedPlaylists,

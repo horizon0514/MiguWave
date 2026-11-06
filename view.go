@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -59,6 +60,12 @@ func (a *app) view(c *ui.Context) {
 	c.OnShortcut(0, ui.KeySpace, func() {
 		if a.pl != nil {
 			a.pl.toggle()
+		}
+	})
+	c.OnShortcut(ui.Cmd, ui.KeyQ, mygo.App.Quit)
+	c.OnShortcut(ui.Cmd, ui.KeyW, func() {
+		if a.win != nil {
+			a.win.Close()
 		}
 	})
 	if a.page == pageSong {
@@ -137,38 +144,7 @@ func (a *app) sidebar(c *ui.Context, p palette) {
 		}
 
 		ui.Spacer(c)
-		account := ui.ButtonBase(c).Key("migu-account").FillWidth().Padding(10, 9).Radius(12).
-			AlignItems(ui.Center).Justify(ui.Start).Gap(9).FocusRing(false).Label("咪咕账号").
-			Background(p.panel)
-		if account.Hovered() {
-			account.Background(p.panelAlt)
-		}
-		account.Children(func() {
-			a.accountAvatar(c, p, 28, 9)
-			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-				title := "咪咕账号"
-				status := "仅播放免费曲目"
-				color := p.faint
-				if a.miguToken != "" {
-					status = "咪咕账号已连接"
-					color = ui.Hex("#1b8e52")
-					if a.miguProfile != nil {
-						if a.miguProfile.Nickname != "" {
-							title = a.miguProfile.Nickname
-						}
-						if a.miguProfile.Phone != "" {
-							status = a.miguProfile.Phone
-						}
-					}
-				}
-				ui.Text(c, title).FontSize(11.5).FontWeight(620).SingleLine()
-				ui.Text(c, status).FontSize(10).TextColor(color).SingleLine()
-			})
-			ui.Box(c).Size(6, 6).Radius(999).Background(statusDot(p, a.miguToken != ""))
-		})
-		if account.Clicked() {
-			a.openAccount()
-		}
+		a.navItem(c, p, iconSettings, "设置", pageSettings)
 		ui.Text(c, "非咪咕官方客户端 · 曲库来自 music.migu.cn").FontSize(8.5).
 			TextColor(p.faint).Margin(4, 2, 0, 0).LineHeight(1.4)
 	})
@@ -266,6 +242,8 @@ func (a *app) pageContent(c *ui.Context, p palette) {
 		a.localPlaylistsPage(c, p)
 	case pageLocalPlaylistDetail:
 		a.localPlaylistDetailPage(c, p)
+	case pageSettings:
+		a.settingsPage(c, p)
 	default:
 		a.homePage(c, p)
 	}

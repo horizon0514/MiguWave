@@ -13,6 +13,7 @@ import (
 func testApp() *app {
 	a := &app{
 		page:         pageHome,
+		closeAction:  closeActionMenuBar,
 		volume:       0.8,
 		arts:         map[string]ui.ImageSource{},
 		artLoad:      map[string]bool{},
@@ -408,6 +409,10 @@ func TestAllPagesRender(t *testing.T) {
 				ID: "local-1", Name: "深夜循环", Tracks: tracks,
 			}}
 		}, "LOCAL PLAYLIST"},
+		{"settings", func(a *app) {
+			a.page = pageSettings
+			a.launchAtLogin = true
+		}, "桌面与启动"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -458,6 +463,7 @@ func TestSavedStateRoundTrip(t *testing.T) {
 	a.localPlaylists = []localPlaylist{{
 		ID: "local-roundtrip", Name: "通勤", Tracks: sampleMiguTracks(),
 	}}
+	a.closeAction = closeActionQuit
 	a.save()
 
 	saved := loadSaved()
@@ -474,10 +480,63 @@ func TestSavedStateRoundTrip(t *testing.T) {
 		len(saved.LocalPlaylists[0].Tracks) != 2 {
 		t.Errorf("local playlists = %+v", saved.LocalPlaylists)
 	}
+	if saved.CloseAction != closeActionQuit {
+		t.Errorf("close action = %q", saved.CloseAction)
+	}
 	if got := statePath(); got != filepath.Join(configDir(), "state.json") {
 		t.Errorf("statePath = %q", got)
 	}
 	if !strings.HasPrefix(configDir(), home) {
 		t.Errorf("configDir = %q, want it under %q", configDir(), home)
+	}
+}
+
+func TestCloseActionDefaultsToMenuBar(t *testing.T) {
+	home := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("AppData", home)
+	} else {
+		t.Setenv("HOME", home)
+	}
+	saved := loadSaved()
+	if saved.CloseAction != closeActionMenuBar {
+		t.Fatalf("default close action = %q", saved.CloseAction)
+	}
+}
+
+func TestSettingsNavigationAndAccountEntry(t *testing.T) {
+	a := testApp()
+	tt := ui.NewTester(a.view, 1240, 820)
+	if tt.HasText("咪咕账号") {
+		t.Fatalf("account entry should no longer live in the sidebar: %q", tt.Texts())
+	}
+	if err := tt.Click("设置"); err != nil {
+		t.Fatal(err)
+	}
+	if a.page != pageSettings {
+		t.Fatalf("page is %v after clicking settings", a.page)
+	}
+	for _, want := range []string{"账号与授权", "连接咪咕账号", "开机启动", "关闭窗口时"} {
+		if !tt.HasText(want) {
+			t.Fatalf("settings page does not show %q: %q", want, tt.Texts())
+		}
+	}
+}
+
+func TestMenuBarLyricPreview(t *testing.T) {
+	detail := miguSongDetail{Lyrics: []lyricLine{
+		{At: 10 * time.Second, Text: "第一句"},
+		{At: 20 * time.Second, Text: ""},
+		{At: 30 * time.Second, Text: "第三句"},
+	}}
+	current, next := menuBarLyricPreview(detail, 21*time.Second)
+	if current != "第一句" || next != "第三句" {
+		t.Fatalf("timestamped preview = %q / %q", current, next)
+	}
+
+	detail.PlainLyrics = true
+	current, next = menuBarLyricPreview(detail, 0)
+	if current != "第一句" || next != "第三句" {
+		t.Fatalf("plain preview = %q / %q", current, next)
 	}
 }

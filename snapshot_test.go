@@ -23,8 +23,8 @@ func TestSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	save := func(name string, a *app, dark bool) {
-		tt := ui.NewTester(a.view, 1240, 820)
+	saveView := func(name string, view func(*ui.Context), width, height int, dark bool) {
+		tt := ui.NewTester(view, width, height)
 		tt.SetScale(2)
 		tt.SetDark(dark)
 		tt.Frame()
@@ -38,6 +38,9 @@ func TestSnapshots(t *testing.T) {
 			t.Fatal(err)
 		}
 		_ = f.Close()
+	}
+	save := func(name string, a *app, dark bool) {
+		saveView(name, a.view, 1240, 820, dark)
 	}
 
 	tracks := sampleMiguTracks()
@@ -239,6 +242,31 @@ func TestSnapshots(t *testing.T) {
 	localPlaylistDelete.localPlaylistDeleteID = sampleLocalPlaylists()[0].ID
 	localPlaylistDelete.localPlaylists = sampleLocalPlaylists()
 	save("local-playlist-delete", localPlaylistDelete, false)
+
+	settings := testApp()
+	settings.page = pageSettings
+	settings.launchAtLogin = true
+	save("settings", settings, false)
+	save("settings-dark", settings, true)
+
+	menuBar := testApp()
+	menuBar.menuDetailID = tracks[0].ID
+	menuBar.menuDetail = miguSongDetail{
+		Track: tracks[0],
+		Cover: tracks[0].Cover,
+		Lyrics: []lyricLine{
+			{At: 0, Text: "故事的小黄花", Timed: true},
+			{At: 8 * time.Second, Text: "从出生那年就飘着", Timed: true},
+			{At: 16 * time.Second, Text: "童年的荡秋千", Timed: true},
+		},
+	}
+	menuBar.pl.current = tracks[0]
+	menuBar.pl.hasCurrent = true
+	menuBar.pl.playing = true
+	menuBar.pl.duration = tracks[0].Duration()
+	seedSnapshotArt(t, menuBar)
+	saveView("menu-bar", menuBar.menuBarView, 388, 322, false)
+	saveView("menu-bar-dark", menuBar.menuBarView, 388, 322, true)
 }
 
 func samplePlaylists() []miguPlaylist {

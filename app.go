@@ -27,11 +27,24 @@ const (
 	pageRadioDetail
 	pageLocalPlaylists
 	pageLocalPlaylistDetail
+	pageSettings
 )
 
 type app struct {
 	win *mygo.Window
 	pl  *player
+
+	tray          *mygo.Tray
+	menuBarPanel  *mygo.Window
+	quitting      bool
+	closeAction   closeAction
+	launchAtLogin bool
+
+	menuDetail        miguSongDetail
+	menuDetailID      string
+	menuDetailLoading bool
+	menuDetailErr     string
+	menuDetailGen     int
 
 	volume         float64
 	favorites      []Track
@@ -226,6 +239,9 @@ func (a *app) post(fn func()) {
 func (a *app) refresh() {
 	if a.win != nil {
 		a.win.Invalidate()
+	}
+	if a.menuBarPanel != nil {
+		a.menuBarPanel.Invalidate()
 	}
 }
 
