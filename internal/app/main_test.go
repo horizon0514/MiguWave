@@ -518,6 +518,65 @@ func TestCloseActionDefaultsToMenuBar(t *testing.T) {
 	}
 }
 
+func TestPlaybackRestoreKeepsQueueAndPosition(t *testing.T) {
+	home := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("AppData", home)
+	} else {
+		t.Setenv("HOME", home)
+	}
+	tracks := sampleMiguTracks()
+	tracks[0].URL = "https://example.invalid/expired-stream"
+
+	a := testApp()
+	a.pl.queue = tracks
+	a.pl.at = 1
+	a.pl.current = tracks[1]
+	a.pl.hasCurrent = true
+	a.pl.duration = tracks[1].Duration()
+	a.pl.pending = 42 * time.Second
+	a.pl.playing = true
+	a.pl.shuffle = true
+	a.pl.repeat = repeatAll
+	a.save()
+
+	saved := loadSaved()
+	if saved.Playback == nil {
+		t.Fatal("playback state was not saved")
+	}
+	if len(saved.Playback.Queue) != 2 || saved.Playback.Index != 1 {
+		t.Fatalf("saved playback = %+v", saved.Playback)
+	}
+	if saved.Playback.Position != 42 {
+		t.Fatalf("saved position = %v", saved.Playback.Position)
+	}
+	if saved.Playback.Queue[0].URL != "" {
+		t.Fatalf("saved queue kept a temporary stream URL: %q", saved.Playback.Queue[0].URL)
+	}
+
+	b := testApp()
+	b.pl.restore(*saved.Playback)
+	if !b.pl.hasCurrent || b.pl.current.ID != tracks[1].ID {
+		t.Fatalf("restored track = %+v, has current = %v", b.pl.current, b.pl.hasCurrent)
+	}
+	if b.pl.at != 1 || len(b.pl.queue) != 2 {
+		t.Fatalf("restored queue = %d/%d", b.pl.at, len(b.pl.queue))
+	}
+	if b.pl.playing || b.pl.loading {
+		t.Fatal("restored playback should stay paused until the user presses play")
+	}
+	if !b.pl.shuffle || b.pl.repeat != repeatAll {
+		t.Fatalf("restored modes = shuffle %v, repeat %v", b.pl.shuffle, b.pl.repeat)
+	}
+	if got := b.pl.position(); got != 42*time.Second {
+		t.Fatalf("restored position = %v", got)
+	}
+	b.pl.seek(75 * time.Second)
+	if got := b.pl.position(); got != 75*time.Second {
+		t.Fatalf("position after seek = %v", got)
+	}
+}
+
 func TestSettingsNavigationAndAccountEntry(t *testing.T) {
 	a := testApp()
 	tt := ui.NewTester(a.view, 1240, 820)

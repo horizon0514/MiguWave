@@ -32,6 +32,8 @@ const (
 	repeatOne
 )
 
+const seekFadeDelay = 25 * time.Millisecond
+
 var streamClient = &http.Client{
 	Transport: &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
@@ -66,6 +68,10 @@ type player struct {
 	duration time.Duration
 	npKey    string
 	pending  time.Duration
+
+	seekGen    int
+	seekTarget time.Duration
+	seeking    bool
 }
 
 func newPlayer(a *app) *player {
@@ -113,6 +119,10 @@ func (p *player) playQueue(tracks []Track, start int) {
 }
 
 func (p *player) load() {
+	p.loadAt(0)
+}
+
+func (p *player) loadAt(pos time.Duration) {
 	if p.at < 0 || p.at >= len(p.queue) {
 		return
 	}
@@ -128,12 +138,13 @@ func (p *player) load() {
 	}
 	p.current = p.queue[p.at]
 	p.hasCurrent = true
+	p.seeking = false
 	if p.app != nil {
 		p.app.followPlayerTrack(p.current)
 	}
 	p.playing = false
 	p.loading = true
-	p.pending = 0
+	p.pending = max(0, pos)
 	p.progress = 0
 	p.err = ""
 	p.duration = p.current.Duration()
@@ -145,6 +156,29 @@ func (p *player) load() {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
 	go p.openTrack(ctx, gen, p.current)
+}
+
+// restore brings back the queue and track from the last session without
+// downloading or playing anything; the first toggle resumes at the saved spot.
+func (p *player) restore(state playbackState) {
+	normalized := normalizePlayback(&state)
+	if normalized == nil {
+		return
+	}
+	state = *normalized
+	p.queue = append([]Track(nil), state.Queue...)
+	p.at = state.Index
+	p.current = p.queue[p.at]
+	p.hasCurrent = true
+	p.shuffle = state.Shuffle
+	p.repeat = state.Repeat
+	p.duration = p.current.Duration()
+	p.pending = seconds(state.Position)
+	p.progress = 1
+	p.playing = false
+	p.loading = false
+	p.err = ""
+	p.syncNowPlaying(nil)
 }
 
 func (p *player) openTrack(ctx context.Context, gen int, t Track) {
@@ -253,9 +287,7 @@ func (p *player) toggle() {
 		return
 	}
 	if p.out == nil {
-		if p.err != "" {
-			p.load()
-		}
+		p.loadAt(p.pending)
 		return
 	}
 	if p.playing {
@@ -284,11 +316,17 @@ func (p *player) next() {
 	}
 	if p.repeat == repeatOne && p.hasCurrent {
 		if p.out != nil {
-			p.out.Seek(0)
-			p.out.Play()
-			p.playing = true
-			p.syncNowPlaying(nil)
-			p.app.refresh()
+			if p.playing {
+				p.seek(0)
+			} else {
+				p.out.Seek(0)
+				p.out.Play()
+				p.playing = true
+				p.syncNowPlaying(nil)
+				p.app.refresh()
+			}
+		} else {
+			p.loadAt(p.pending)
 		}
 		return
 	}
@@ -317,9 +355,7 @@ func (p *player) next() {
 
 func (p *player) prev() {
 	if p.out != nil && p.out.Position() > 4*time.Second {
-		p.out.Seek(0)
-		p.syncNowPlaying(nil)
-		p.app.refresh()
+		p.seek(0)
 		return
 	}
 	if len(p.queue) == 0 {
@@ -338,19 +374,52 @@ func (p *player) prev() {
 
 func (p *player) seek(pos time.Duration) {
 	if p.out == nil {
-		if p.loading {
-			p.pending = pos
-		}
+		p.pending = max(0, pos)
+		p.syncNowPlaying(nil)
+		p.app.refresh()
 		return
 	}
-	p.out.Seek(pos)
+	pos = max(0, pos)
+	out := p.out
+	if !p.playing {
+		p.seeking = false
+		out.Seek(pos)
+		p.syncNowPlaying(nil)
+		p.app.refresh()
+		return
+	}
+	// Seeking restarts the decoder at a new waveform, which clicks if it is
+	// mixed next to the old one. Pause fades the old audio out first, then
+	// Play fades the new position in.
+	p.seekGen++
+	gen := p.seekGen
+	p.seekTarget = pos
+	p.seeking = true
+	out.Pause()
+	time.AfterFunc(seekFadeDelay, func() {
+		p.app.post(func() {
+			if p.seekGen != gen || p.out != out {
+				return
+			}
+			out.Seek(pos)
+			if p.playing {
+				out.Play()
+			}
+			p.seeking = false
+			p.syncNowPlaying(nil)
+			p.app.refresh()
+		})
+	})
 	p.syncNowPlaying(nil)
 	p.app.refresh()
 }
 
 func (p *player) position() time.Duration {
 	if p.out == nil {
-		return 0
+		return p.pending
+	}
+	if p.seeking {
+		return p.seekTarget
 	}
 	return p.out.Position()
 }

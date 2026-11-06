@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,6 +23,14 @@ const (
 	closeActionQuit    closeAction = "quit"
 )
 
+type playbackState struct {
+	Queue    []Track    `json:"queue,omitempty"`
+	Index    int        `json:"index,omitempty"`
+	Position float64    `json:"position,omitempty"`
+	Shuffle  bool       `json:"shuffle,omitempty"`
+	Repeat   repeatMode `json:"repeat,omitempty"`
+}
+
 type savedState struct {
 	Volume         float64          `json:"volume"`
 	Theme          mygo.ThemeSource `json:"theme,omitempty"`
@@ -31,6 +40,7 @@ type savedState struct {
 	Recent         []Track          `json:"recent,omitempty"`
 	SavedPlaylists []miguPlaylist   `json:"savedPlaylists,omitempty"`
 	LocalPlaylists []localPlaylist  `json:"localPlaylists,omitempty"`
+	Playback       *playbackState   `json:"playback,omitempty"`
 }
 
 func configDir() string {
@@ -75,7 +85,51 @@ func loadSaved() savedState {
 			s.LocalPlaylists[i].Tracks = []Track{}
 		}
 	}
+	s.Playback = normalizePlayback(s.Playback)
 	return s
+}
+
+const playbackQueueLimit = 200
+
+// normalizePlayback drops expired stream URLs and keeps the saved queue in a
+// shape the player can restore without another lookup.
+func normalizePlayback(state *playbackState) *playbackState {
+	if state == nil {
+		return nil
+	}
+	queue := make([]Track, 0, min(len(state.Queue), playbackQueueLimit))
+	for _, track := range state.Queue {
+		if strings.TrimSpace(track.ID) == "" {
+			continue
+		}
+		track.URL = ""
+		queue = append(queue, track)
+		if len(queue) == playbackQueueLimit {
+			break
+		}
+	}
+	if len(queue) == 0 {
+		return nil
+	}
+	index := min(max(state.Index, 0), len(queue)-1)
+	position := state.Position
+	if math.IsNaN(position) || math.IsInf(position, 0) || position < 0 {
+		position = 0
+	}
+	if d := queue[index].Duration().Seconds(); d > 0 && position >= d {
+		position = 0
+	}
+	repeat := state.Repeat
+	if repeat < repeatOff || repeat > repeatOne {
+		repeat = repeatOff
+	}
+	return &playbackState{
+		Queue:    queue,
+		Index:    index,
+		Position: position,
+		Shuffle:  state.Shuffle,
+		Repeat:   repeat,
+	}
 }
 
 func normalizeCloseAction(action closeAction) closeAction {
@@ -105,6 +159,7 @@ func (a *app) save() {
 		Recent:         a.recent,
 		SavedPlaylists: a.savedPlaylists,
 		LocalPlaylists: a.localPlaylists,
+		Playback:       a.playbackSnapshot(),
 	}
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
@@ -119,6 +174,19 @@ func (a *app) save() {
 		return
 	}
 	_ = os.Rename(tmp, statePath())
+}
+
+func (a *app) playbackSnapshot() *playbackState {
+	if a.pl == nil || !a.pl.hasCurrent || len(a.pl.queue) == 0 {
+		return nil
+	}
+	return normalizePlayback(&playbackState{
+		Queue:    a.pl.queue,
+		Index:    a.pl.at,
+		Position: a.pl.position().Seconds(),
+		Shuffle:  a.pl.shuffle,
+		Repeat:   a.pl.repeat,
+	})
 }
 
 func (a *app) isFavorite(id string) bool {

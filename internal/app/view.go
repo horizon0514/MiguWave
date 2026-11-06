@@ -450,7 +450,7 @@ func (a *app) progressControl(c *ui.Context, p palette) ui.Element {
 		a.scrubActive = false
 		pl.seek(seconds(min(a.scrub, max(0, dur-1))))
 	}
-	if s.Changed() {
+	if s.Changed() && !a.scrubHeld {
 		pl.seek(seconds(min(a.scrub, max(0, dur-1))))
 	}
 	hot := s.Hovered() || pressed

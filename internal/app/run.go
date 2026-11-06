@@ -44,6 +44,9 @@ func Run() error {
 		coverHQFail:    map[string]bool{},
 	}
 	a.pl = newPlayer(a)
+	if saved.Playback != nil {
+		a.pl.restore(*saved.Playback)
+	}
 
 	mygo.App.OnSecondInstance(func([]string, string) {
 		a.showMainWindow()
@@ -51,7 +54,10 @@ func Run() error {
 	mygo.App.OnActivate(func(hasVisibleWindows bool) {
 		a.handleAppActivate(hasVisibleWindows)
 	})
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		a.quitting = true
+		a.save()
+	})
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
 		a.stopMenuBarAnimation()
 		if a.tray != nil {
