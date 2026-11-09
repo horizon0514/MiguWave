@@ -19,7 +19,12 @@ import (
 // miguWebLoginURL is the desktop login page shown inside the app. It is the
 // same passport page the browser uses, so account, SMS and SIM login all work
 // without the app ever seeing a password.
-const miguWebLoginURL = "https://passport.migu.cn/login?sourceid=220029&apptype=2&forceAuthn=true&isPassive=false&display=pc&callbackURL=PostToken&hideRegister=1&hideForgetPass=1"
+const miguWebLoginURL = "https://passport.migu.cn/login?sourceid=220029&apptype=2&forceAuthn=false&isPassive=false&display=pc&callbackURL=PostToken&hideRegister=1&hideForgetPass=1"
+
+// miguLoginSessionName keeps the passport cookies on disk, so the login page
+// can reuse the sign-in on later launches instead of asking for a QR scan
+// again. 咪咕's own web SDK does the same with withCookie/autoLogin.
+const miguLoginSessionName = "migu-login"
 
 // startBrowserLogin shows migu's own login page in an embedded web view and
 // watches the login session for the pacmtoken cookie.
@@ -100,20 +105,20 @@ func (a *app) startBrowserLogin() {
 	})
 }
 
-// newLoginWebView creates the embedded login page. The session is
-// ephemeral: the page's cookies go away with the view, and only the login
-// token is kept, in the system credential store.
+// newLoginWebView creates the embedded login page. The session persists on
+// disk (like a browser profile) so passport cookies can silently renew the
+// login; the token itself is still stored separately.
 func newLoginWebView(win *mygo.Window) (*mygo.WebView, *mygo.Session, error) {
 	if win == nil {
 		return nil, nil, errors.New("主窗口尚未就绪")
 	}
-	session := mygo.NewEphemeralSession()
+	session := mygo.NewSession(miguLoginSessionName)
 	view, err := win.NewWebView(mygo.WebViewOptions{
 		BackgroundColor: "#ffffff",
 		Page: mygo.PageOptions{
 			Session:         session,
 			Untrusted:       true,
-			UserAgentSuffix: "MiguWave/0.1.0",
+			UserAgentSuffix: "MiguWave/0.1.1",
 			SwipeNavigation: true,
 			PinchZoom:       true,
 		},
@@ -122,6 +127,12 @@ func newLoginWebView(win *mygo.Window) (*mygo.WebView, *mygo.Session, error) {
 		return nil, nil, err
 	}
 	return view, session, nil
+}
+
+func clearMiguLoginSession() {
+	if session := mygo.NewSession(miguLoginSessionName); session != nil {
+		_ = session.ClearData(mygo.SiteDataAll)
+	}
 }
 
 func notifyLoginNavigation(nav chan string, raw string) {
@@ -539,4 +550,127 @@ func (a *app) connectMiguToken(token string, validationErr error) {
 	a.toast = "咪咕账号已连接"
 	a.refresh()
 	a.loadMiguProfile(token)
+	a.retryAfterRelogin()
+	a.authRefreshFor = ""
+	a.authAutoLoginFor = ""
+	a.lastTokenRefresh = time.Now()
+	a.startMiguTokenKeepAlive()
+}
+
+// handlePlaybackAuthFailure reacts to Migu rejecting the saved token while
+// resolving a track. Migu issues no refresh token, so a silent renewal is not
+// possible; the closest automatic recovery is to open the real login page
+// once and retry the failed track after the login completes.
+func (a *app) handlePlaybackAuthFailure(trackID string) {
+	a.authRetryTrackID = trackID
+	if trackID != "" && a.authAutoLoginFor == trackID {
+		return
+	}
+	if token := a.miguToken; token != "" && a.authRefreshFor != trackID {
+		// 咪咕的官方 SDK 会用 checkPacMtoken 换发新令牌。先试一次静默
+		// 续期，能成功就不用打扰用户重新登录。
+		a.authRefreshFor = trackID
+		a.toast = "咪咕登录状态需要刷新，正在自动续期"
+		a.refresh()
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			fresh, err := migu.RefreshToken(ctx, token)
+			if err == nil && fresh != "" && fresh != token {
+				a.post(func() {
+					if a.miguToken == token {
+						a.miguToken = fresh
+						_ = migu.SaveToken(fresh)
+					}
+					a.lastTokenRefresh = time.Now()
+					if a.pl != nil && a.pl.hasCurrent && a.pl.current.ID == trackID {
+						a.toast = "咪咕登录已自动续期，正在重试"
+						a.pl.retry()
+					}
+				})
+				return
+			}
+			a.post(func() { a.promptMiguRelogin(trackID) })
+		}()
+		return
+	}
+	a.promptMiguRelogin(trackID)
+}
+
+func (a *app) promptMiguRelogin(trackID string) {
+	if trackID != "" && a.authAutoLoginFor == trackID {
+		return
+	}
+	a.authAutoLoginFor = trackID
+	a.accountOpen = true
+	a.authMode = authModeBrowser
+	a.startBrowserLogin()
+	a.authNotice = "登录已过期。正在自动重新登录，完成后会继续播放。"
+	a.toast = "登录已过期，正在自动重新登录"
+	a.refresh()
+}
+
+const (
+	miguTokenKeepAliveInterval = 6 * time.Hour
+	miguTokenRefreshMinGap     = 30 * time.Minute
+)
+
+// startMiguTokenKeepAlive renews the pacmtoken on launch and every few hours
+// while the app runs. 咪咕's own web SDK does this on each checkLogin by
+// taking the pacmtoken response header from checkPacMtoken.
+func (a *app) startMiguTokenKeepAlive() {
+	if a.tokenKeepAlive || a.miguToken == "" {
+		return
+	}
+	a.tokenKeepAlive = true
+	go func() {
+		a.refreshMiguTokenSoon()
+		ticker := time.NewTicker(miguTokenKeepAliveInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			a.refreshMiguTokenSoon()
+		}
+	}()
+}
+
+func (a *app) refreshMiguTokenSoon() {
+	a.post(func() {
+		token := a.miguToken
+		if token == "" {
+			return
+		}
+		if !a.lastTokenRefresh.IsZero() && time.Since(a.lastTokenRefresh) < miguTokenRefreshMinGap {
+			return
+		}
+		a.lastTokenRefresh = time.Now()
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			fresh, err := migu.RefreshToken(ctx, token)
+			if err != nil || fresh == "" || fresh == token {
+				return
+			}
+			a.post(func() {
+				if a.miguToken != token {
+					return
+				}
+				a.miguToken = fresh
+				_ = migu.SaveToken(fresh)
+			})
+		}()
+	})
+}
+
+func (a *app) retryAfterRelogin() {
+	trackID := a.authRetryTrackID
+	if trackID == "" {
+		return
+	}
+	a.authRetryTrackID = ""
+	if a.pl == nil || !a.pl.hasCurrent || a.pl.current.ID != trackID {
+		return
+	}
+	a.accountOpen = false
+	a.toast = "咪咕登录已恢复，正在重新播放刚才的歌曲"
+	a.pl.retry()
 }

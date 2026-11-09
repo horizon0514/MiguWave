@@ -602,6 +602,9 @@ func resolveMiguURL(ctx context.Context, token string, track Track) (string, err
 		return "", err
 	}
 	if out.Code != "" && out.Code != "000000" {
+		if out.Code == "290001" {
+			return "", fmt.Errorf("%w：请重新登录咪咕账号", errMiguTokenStale)
+		}
 		return "", fmt.Errorf("咪咕播放：%s", out.Info)
 	}
 	if strings.TrimSpace(out.Data.URL) != "" {

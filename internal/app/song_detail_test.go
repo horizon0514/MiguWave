@@ -113,3 +113,63 @@ func TestSongPageFollowsPlayerTrack(t *testing.T) {
 		t.Fatalf("cached detail was not applied: %+v", a.songDetail)
 	}
 }
+
+func TestSongPageShowsPlaybackErrorGuidance(t *testing.T) {
+	track := sampleMiguTracks()[1]
+	a := testApp()
+	a.page = pageSong
+	a.songTrack = track
+	a.songQueue = sampleMiguTracks()
+	a.songIndex = 1
+	a.songDetail = miguSongDetail{Track: track, Album: track.Album}
+	a.pl.queue = append([]Track(nil), a.songQueue...)
+	a.pl.at = 1
+	a.pl.current = track
+	a.pl.hasCurrent = true
+	a.pl.err = "版权方要求，该歌曲需开通白金会员后播放"
+	a.pl.errKind = playbackFailureVIP
+
+	tt := ui.NewTester(a.view, 1240, 820)
+	for _, want := range []string{
+		"需要咪咕白金会员",
+		"开通会员后可播放",
+		"查看账号",
+		"重试",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("song playback error does not show %q: %q", want, tt.Texts())
+		}
+	}
+}
+
+func TestSongPageShowsFriendlyAuthError(t *testing.T) {
+	track := sampleMiguTracks()[1]
+	a := testApp()
+	a.page = pageSong
+	a.songTrack = track
+	a.songQueue = sampleMiguTracks()
+	a.songIndex = 1
+	a.songDetail = miguSongDetail{Track: track, Album: track.Album}
+	a.pl.queue = append([]Track(nil), a.songQueue...)
+	a.pl.at = 1
+	a.pl.current = track
+	a.pl.hasCurrent = true
+	a.pl.err = "咪咕登录状态已失效"
+	a.pl.errKind = playbackFailureAuth
+
+	tt := ui.NewTester(a.view, 1240, 820)
+	for _, want := range []string{
+		"登录状态已过期",
+		"正在自动重新登录",
+		"查看登录",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("song auth error does not show %q: %q", want, tt.Texts())
+		}
+	}
+	for _, unwanted := range []string{"咪咕登录状态已失效", "请重新登录"} {
+		if tt.HasText(unwanted) {
+			t.Fatalf("song auth error still shows raw text %q: %q", unwanted, tt.Texts())
+		}
+	}
+}

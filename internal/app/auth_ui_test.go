@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -109,5 +110,47 @@ func TestAccountModalOffersLoginModes(t *testing.T) {
 		if !tt.HasText(want) {
 			t.Errorf("token mode does not show %q", want)
 		}
+	}
+}
+
+func TestPlaybackAuthFailureOpensReloginOncePerTrack(t *testing.T) {
+	a := testApp()
+	track := sampleMiguTracks()[0]
+
+	a.handlePlaybackAuthFailure(track.ID)
+
+	if !a.accountOpen {
+		t.Fatal("account modal did not open automatically")
+	}
+	if a.authRetryTrackID != track.ID {
+		t.Fatalf("retry track = %q, want %q", a.authRetryTrackID, track.ID)
+	}
+	if a.authMode != authModeBrowser {
+		t.Fatalf("auth mode = %v, want browser", a.authMode)
+	}
+	if a.authPhase != miguAuthBrowserLoading {
+		t.Fatalf("auth phase = %v, want browser loading", a.authPhase)
+	}
+	if !strings.Contains(a.authNotice, "自动") {
+		t.Fatalf("auth notice does not explain automatic recovery: %q", a.authNotice)
+	}
+
+	a.authNotice = "sentinel"
+	a.handlePlaybackAuthFailure(track.ID)
+	if a.authNotice != "sentinel" {
+		t.Fatalf("retrying the same track reopened login: %q", a.authNotice)
+	}
+}
+
+func TestRetryAfterReloginSkipsOtherTrack(t *testing.T) {
+	a := testApp()
+	a.authRetryTrackID = "migu:first"
+	a.pl.current = Track{ID: "migu:second"}
+	a.pl.hasCurrent = true
+
+	a.retryAfterRelogin()
+
+	if a.authRetryTrackID != "" {
+		t.Fatalf("retry state was not cleared: %q", a.authRetryTrackID)
 	}
 }

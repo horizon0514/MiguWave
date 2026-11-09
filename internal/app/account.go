@@ -385,6 +385,10 @@ func (a *app) clearMiguToken() {
 	a.miguProfile = nil
 	a.miguProfileErr = ""
 	a.miguProfileLoading = false
+	a.authRetryTrackID = ""
+	a.authAutoLoginFor = ""
+	a.authRefreshFor = ""
+	clearMiguLoginSession()
 	if err := migu.SaveToken(""); err != nil {
 		a.authNotice = "已清除当前登录状态，但本地令牌删除失败：" + friendlyError(err)
 	} else {

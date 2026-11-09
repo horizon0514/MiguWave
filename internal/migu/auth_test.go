@@ -336,6 +336,38 @@ func TestCheckMiguToken(t *testing.T) {
 	}
 }
 
+func TestRefreshMiguToken(t *testing.T) {
+	old := miguTokenRefreshURL
+	defer func() { miguTokenRefreshURL = old }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("pacmtoken"); got != "old-token" {
+			t.Errorf("pacmtoken = %q", got)
+		}
+		if r.URL.Query().Get("invalid") == "1" {
+			_ = json.NewEncoder(w).Encode(map[string]string{"code": "850003", "info": "内部错误"})
+			return
+		}
+		w.Header().Set("pacmtoken", "rotated-token")
+		_ = json.NewEncoder(w).Encode(map[string]string{"code": "000000", "info": "成功"})
+	}))
+	defer server.Close()
+
+	miguTokenRefreshURL = server.URL
+	fresh, err := refreshMiguToken(context.Background(), "old-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh != "rotated-token" {
+		t.Fatalf("fresh token = %q", fresh)
+	}
+
+	miguTokenRefreshURL = server.URL + "?invalid=1"
+	if _, err := refreshMiguToken(context.Background(), "old-token"); err == nil {
+		t.Fatal("invalid token refresh succeeded")
+	}
+}
+
 func TestMiguQRResponseAcceptsStringStatus(t *testing.T) {
 	var response miguQRResponse
 	if err := json.Unmarshal([]byte(`{"status":"4074","message":"未扫码","result":{}}`), &response); err != nil {

@@ -75,6 +75,10 @@ func SaveToken(token string) error {
 	return saveMiguToken(token)
 }
 
+func RefreshToken(ctx context.Context, token string) (string, error) {
+	return refreshMiguToken(ctx, token)
+}
+
 func FetchPlaylistSquare(ctx context.Context) ([]PlaylistSection, error) {
 	return fetchMiguPlaylistSquare(ctx)
 }

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -12,6 +13,24 @@ import (
 
 	"freewave/internal/migu"
 )
+
+func TestFriendlyErrorHidesTechnicalDetails(t *testing.T) {
+	tests := []struct {
+		err  error
+		want string
+	}{
+		{errors.New(`Get "https://example.invalid": dial tcp: no such host`), "网络连接失败，请稍后重试"},
+		{errors.New(`fetch: 502 Bad Gateway`), "操作没有完成，请稍后重试"},
+		{errors.New(`invalid character '<' looking for beginning of value`), "操作没有完成，请稍后重试"},
+		{errors.New("版权方要求，该歌曲需开通白金会员后播放"), "版权方要求，该歌曲需开通白金会员后播放"},
+		{errMiguTokenStale, "登录已过期，请重新登录"},
+	}
+	for _, tt := range tests {
+		if got := friendlyError(tt.err); got != tt.want {
+			t.Errorf("friendlyError(%q) = %q, want %q", tt.err, got, tt.want)
+		}
+	}
+}
 
 func testApp() *app {
 	a := &app{

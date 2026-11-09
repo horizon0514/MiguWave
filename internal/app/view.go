@@ -318,7 +318,15 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 					if pl.err != "" {
 						sub = pl.err
 					}
-					ui.Text(c, sub).FontSize(11.5).TextColor(metaColor(p, pl)).SingleLine()
+					if pl.err != "" {
+						ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+							ui.Icon(c, iconAlert).Size(11, 11).TextColor(metaColor(p, pl))
+							ui.Text(c, playbackErrorLabel(pl)).FontSize(11.5).
+								TextColor(metaColor(p, pl)).SingleLine()
+						})
+					} else {
+						ui.Text(c, sub).FontSize(11.5).TextColor(p.muted).SingleLine()
+					}
 				})
 			})
 			if info.Clicked() && pl.hasCurrent {
@@ -416,10 +424,28 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 }
 
 func metaColor(p palette, pl *player) ui.Color {
-	if pl.err != "" {
-		return ui.Hex("#ef6b6b")
+	switch pl.errKind {
+	case playbackFailureVIP:
+		return ui.Hex("#d9ad5c")
+	case playbackFailureAuth:
+		return ui.Hex("#e18a97")
+	case playbackFailureUnknown:
+		return ui.Hex("#e8958a")
 	}
 	return p.muted
+}
+
+func playbackErrorLabel(pl *player) string {
+	switch pl.errKind {
+	case playbackFailureVIP:
+		return "需要白金会员"
+	case playbackFailureAuth:
+		return "登录已过期"
+	case playbackFailureUnknown:
+		return "播放失败"
+	default:
+		return "播放失败"
+	}
 }
 
 func (a *app) progressControl(c *ui.Context, p palette) ui.Element {

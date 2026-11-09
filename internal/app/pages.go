@@ -664,14 +664,7 @@ func (a *app) accountModal(c *ui.Context, p palette) {
 					a.accountBrowserPanel(c, p)
 				}
 
-				if a.authNotice != "" {
-					color := p.muted
-					if a.authPhase == miguAuthError || a.authPhase == miguAuthInvalid || a.authPhase == miguAuthQRExpired {
-						color = p.accent
-					}
-					ui.Text(c, a.authNotice).FontSize(11).TextColor(color).
-						LineHeight(1.45).FillWidth()
-				}
+				a.authNoticeCard(c, p)
 
 				ui.Text(c, "登录在咪咕官方页面完成；客户端不会读取账号密码，只保存咪咕返回的登录令牌。").
 					FontSize(10.5).TextColor(p.faint).LineHeight(1.45)
@@ -783,7 +776,7 @@ func (a *app) accountBrowserPanel(c *ui.Context, p palette) {
 
 		ui.Row(c).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconClock).Size(12, 12).TextColor(p.faint)
-			ui.Text(c, "登录完成后会自动连接；关闭授权面板或完成登录后，网页 Cookie 立即清除。").
+			ui.Text(c, "登录完成后会自动连接；登录状态仅保存在本机，用于后续自动恢复。").
 				FontSize(10.5).TextColor(p.faint)
 			ui.Spacer(c)
 			a.miniLink(c, p, "改用手机扫码", func() {
@@ -853,9 +846,9 @@ func (a *app) accountConnectedPanel(c *ui.Context, p palette) {
 			ui.Text(c, "账号资料暂时无法读取："+a.miguProfileErr).FontSize(10.5).TextColor(p.faint).
 				LineHeight(1.45)
 		}
-		if a.authNotice != "" {
-			ui.Text(c, a.authNotice).FontSize(10.5).TextColor(p.muted).LineHeight(1.45)
-		}
+		a.authNoticeCard(c, p)
+		ui.Text(c, "已开启自动续期：启动应用或保持运行时，会在后台向咪咕延长登录状态。").
+			FontSize(10.5).TextColor(p.faint).LineHeight(1.5)
 
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 			a.primaryButton(c, "重新登录", iconSpark, func() {
@@ -871,6 +864,33 @@ func (a *app) accountConnectedPanel(c *ui.Context, p palette) {
 
 		ui.Text(c, "“已连接”只代表咪咕登录有效；实际可播放范围仍由账号会员状态和单曲版权决定。").
 			FontSize(10.5).TextColor(p.faint).LineHeight(1.5)
+	})
+}
+
+func (a *app) authNoticeCard(c *ui.Context, p palette) {
+	if a.authNotice == "" {
+		return
+	}
+	problem := a.authPhase == miguAuthError ||
+		a.authPhase == miguAuthInvalid ||
+		a.authPhase == miguAuthQRExpired ||
+		(a.authRetryTrackID != "" && a.authPhase == miguAuthBrowserLoading) ||
+		strings.Contains(a.authNotice, "过期")
+	icon := iconClock
+	accent := p.muted
+	tint := p.panelAlt
+	text := p.muted
+	if problem {
+		icon = iconAlert
+		accent = p.accent
+		tint = p.accent.Alpha(0.065)
+		text = p.text.Alpha(0.78)
+	}
+	ui.Row(c).FillWidth().Padding(9, 11).Radius(11).Gap(8).
+		AlignItems(ui.Start).Background(tint).Children(func() {
+		ui.Icon(c, icon).Size(14, 14).TextColor(accent)
+		ui.Text(c, a.authNotice).FontSize(10.8).TextColor(text).
+			LineHeight(1.45).Grow(1)
 	})
 }
 
@@ -1004,7 +1024,7 @@ func (a *app) accountQRStatus() (string, string) {
 	case miguAuthBrowserLoading:
 		return "正在打开登录页", "正在载入咪咕官方登录页，通常只需要几秒。"
 	case miguAuthBrowserWaiting:
-		return "请在上方登录", "登录完成后会自动连接，不需要再复制令牌。"
+		return "请在上方登录", "登录完成后会自动连接并开启自动续期，不需要再复制令牌。"
 	default:
 		return "登录咪咕账号", "可以应用内登录、用咪咕 App 扫码，或导入 pacmtoken。"
 	}

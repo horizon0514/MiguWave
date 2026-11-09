@@ -138,6 +138,7 @@ func (a *app) handleAppActivate(hasVisibleWindows bool) {
 	if a.shouldShowMainOnActivate(hasVisibleWindows, dockVisible, time.Now()) {
 		a.showMainWindow()
 	}
+	a.refreshMiguTokenSoon()
 }
 
 func (a *app) menuBarMenu() *mygo.Menu {

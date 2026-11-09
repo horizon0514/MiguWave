@@ -117,6 +117,22 @@ func TestSnapshots(t *testing.T) {
 	save("song-detail", song, false)
 	save("song-detail-dark", song, true)
 
+	songError := testApp()
+	songError.page = pageSong
+	songError.songTrack = tracks[1]
+	songError.songQueue = tracks
+	songError.songIndex = 1
+	songError.songDetail = song.songDetail
+	songError.songCache[tracks[1].ID] = song.songDetail
+	songError.pl.queue = append([]Track(nil), tracks...)
+	songError.pl.at = 1
+	songError.pl.current = tracks[1]
+	songError.pl.hasCurrent = true
+	songError.pl.err = "版权方要求，该歌曲需开通白金会员后播放"
+	songError.pl.errKind = playbackFailureVIP
+	seedSnapshotArt(t, songError)
+	save("song-error", songError, false)
+
 	stage := testApp()
 	stage.page = pageSong
 	stage.songPane = songPaneStage
@@ -132,6 +148,13 @@ func TestSnapshots(t *testing.T) {
 	account.accountOpen = true
 	account.authPhase = miguAuthBrowserWaiting
 	save("account", account, false)
+
+	accountInvalid := testApp()
+	accountInvalid.accountOpen = true
+	accountInvalid.authMode = authModeBrowser
+	accountInvalid.authPhase = miguAuthInvalid
+	accountInvalid.authNotice = "登录已过期。正在自动重新登录，完成后会继续播放。"
+	save("account-invalid", accountInvalid, false)
 
 	accountQR := testApp()
 	accountQR.accountOpen = true

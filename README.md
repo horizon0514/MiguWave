@@ -30,7 +30,7 @@
 
 要求 macOS 12 或更高版本。
 
-1. 打开 `miguwave-0.1.0.dmg`。
+1. 打开 `miguwave-0.1.1.dmg`。
 2. 把「MiguWave」拖进「应用程序」。
 3. 首次启动时，如果 macOS 提示无法验证开发者，在 Finder 中右键应用并选择「打开」。
 
@@ -46,7 +46,7 @@ xattr -dr com.apple.quarantine /Applications/MiguWave.app
 
 要求 Windows 10 1809+ 或 Windows 11，以及 WebView2 Runtime（Windows 11 自带，旧系统可安装 Evergreen Runtime）。
 
-1. 运行 `miguwave-setup-0.1.0-amd64.exe`（Intel / AMD）或 `miguwave-setup-0.1.0-arm64.exe`（ARM64 设备）。
+1. 运行 `miguwave-setup-0.1.1-amd64.exe`（Intel / AMD）或 `miguwave-setup-0.1.1-arm64.exe`（ARM64 设备）。
 2. 安装到当前用户目录，不需要管理员权限。
 3. 当前构建未做代码签名，SmartScreen 提示时点「更多信息」→「仍要运行」。
 4. 如果缺少 WebView2，应用内登录页会提示无法打开；安装 Runtime 后重试即可，扫码和令牌导入不受影响。
@@ -112,9 +112,10 @@ go tool mygo build -platform windows/amd64,windows/arm64
 3. 也可以切到「手机扫码」，用咪咕音乐 App 扫描窗口中的二维码并在手机上确认。
 4. 还可以切到「令牌导入」，粘贴 `pacmtoken` 或包含它的完整 Cookie，或点「从剪贴板导入」。
 
-三种方式都会先在客户端内向咪咕校验，再把 `pacmtoken` 写入应用配置目录下的私有文件（权限 `0600`）。应用内登录使用一次性网页会话：
+三种方式都会先在客户端内向咪咕校验，再把 `pacmtoken` 写入应用配置目录下的私有文件（权限 `0600`）。应用内登录会把咪咕官方登录页的必要 Cookie 保存在本机会话中，用于自动恢复登录和续期：
 
-- 关闭授权窗口或完成登录后，网页 Cookie 立即清除
+- 登录会话只用于咪咕登录页的自动恢复，不会上传到其他服务
+- 退出登录或清除授权时，会同时清除本机保存的登录会话
 - 客户端不会读取、保存或回显咪咕账号密码
 - 令牌不会出现在日志、`state.json` 或界面中
 

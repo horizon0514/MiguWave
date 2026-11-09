@@ -48,8 +48,8 @@ go tool mygo build -platform windows/amd64,windows/arm64
 推送到 `main` 会自动运行格式检查、测试、静态检查，并构建 macOS 与 Windows 产物。推送 `v*` 标签会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.1.0 -m "MiguWave 0.1.0"
-git push origin v0.1.0
+git tag -a v0.1.1 -m "MiguWave 0.1.1"
+git push origin v0.1.1
 ```
 
 Release 包含通用 DMG、macOS 应用 ZIP、Windows x64/ARM64 安装包与免安装版，以及合并后的 `SHA256SUMS`。工作流文件是 `.github/workflows/ci.yml`。
@@ -103,7 +103,7 @@ Windows 安装包当前未做代码签名，SmartScreen 会提示未知发布者
 
 ```bash
 app="build/darwin-universal/MiguWave.app"
-dmg="build/darwin-universal/miguwave-0.1.0.dmg"
+dmg="build/darwin-universal/miguwave-0.1.1.dmg"
 
 codesign --verify --deep --strict --verbose=2 "$app"
 spctl -a -vv "$app"

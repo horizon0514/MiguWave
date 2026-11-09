@@ -32,6 +32,15 @@ const (
 	repeatOne
 )
 
+type playbackFailureKind int
+
+const (
+	playbackFailureNone playbackFailureKind = iota
+	playbackFailureUnknown
+	playbackFailureVIP
+	playbackFailureAuth
+)
+
 const seekFadeDelay = 25 * time.Millisecond
 
 var streamClient = &http.Client{
@@ -59,6 +68,7 @@ type player struct {
 	loading    bool
 	progress   float64
 	err        string
+	errKind    playbackFailureKind
 	volume     float64
 	gen        int
 	cancel     context.CancelFunc
@@ -147,6 +157,7 @@ func (p *player) loadAt(pos time.Duration) {
 	p.pending = max(0, pos)
 	p.progress = 0
 	p.err = ""
+	p.errKind = playbackFailureNone
 	p.duration = p.current.Duration()
 	p.npKey = ""
 	p.app.resetStageAudio(p.current.ID)
@@ -178,6 +189,7 @@ func (p *player) restore(state playbackState) {
 	p.playing = false
 	p.loading = false
 	p.err = ""
+	p.errKind = playbackFailureNone
 	p.syncNowPlaying(nil)
 }
 
@@ -228,6 +240,7 @@ func (p *player) start(out *audio.Player, t Track, art []byte) {
 	p.loading = false
 	p.progress = 1
 	p.err = ""
+	p.errKind = playbackFailureNone
 	if d := out.Duration(); d > 0 {
 		p.duration = d
 	}
@@ -255,6 +268,17 @@ func (p *player) fail(gen int, err error) {
 		p.playing = false
 		p.pending = 0
 		p.err = friendlyError(err)
+		switch {
+		case errors.Is(err, errMiguVIPRequired):
+			p.errKind = playbackFailureVIP
+		case errors.Is(err, errMiguTokenStale):
+			p.errKind = playbackFailureAuth
+			p.app.handlePlaybackAuthFailure(p.current.ID)
+		case p.err != "":
+			p.errKind = playbackFailureUnknown
+		default:
+			p.errKind = playbackFailureNone
+		}
 		p.app.refresh()
 	})
 }
@@ -267,14 +291,36 @@ func friendlyError(err error) string {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return ""
+	case errors.Is(err, errMiguTokenStale):
+		return "登录已过期，请重新登录"
 	case errors.Is(err, errMiguVIPRequired):
+		if _, reason, ok := strings.Cut(msg, "："); ok {
+			if reason = strings.TrimSpace(reason); reason != "" {
+				reason, _, _ = strings.Cut(reason, "。")
+				return reason
+			}
+		}
 		return msg
-	case strings.Contains(msg, "no such host"):
+	case strings.Contains(msg, "no such host"),
+		strings.Contains(msg, "connection refused"),
+		strings.Contains(msg, "network is unreachable"):
 		return "网络连接失败，请稍后重试"
-	case strings.Contains(msg, "timeout"), strings.Contains(msg, "deadline"):
+	case strings.Contains(msg, "timeout"), strings.Contains(msg, "deadline"),
+		strings.Contains(msg, "i/o timeout"):
 		return "连接超时，请稍后重试"
 	case strings.Contains(msg, "unknown format"):
 		return "这个音频格式暂时无法播放"
+	}
+	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "http://") ||
+		strings.Contains(lower, "https://") ||
+		strings.Contains(lower, "bad gateway") ||
+		strings.Contains(lower, "status") ||
+		strings.Contains(lower, "invalid character") ||
+		strings.Contains(lower, "unexpected end") ||
+		strings.Contains(lower, "parse") ||
+		strings.Contains(lower, "decode") {
+		return "操作没有完成，请稍后重试"
 	}
 	if len([]rune(msg)) > 90 {
 		msg = string([]rune(msg)[:90]) + "…"
@@ -299,6 +345,13 @@ func (p *player) toggle() {
 	}
 	p.syncNowPlaying(nil)
 	p.app.refresh()
+}
+
+func (p *player) retry() {
+	if !p.hasCurrent || p.loading {
+		return
+	}
+	p.loadAt(p.position())
 }
 
 func (p *player) stop() {

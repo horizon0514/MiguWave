@@ -229,6 +229,75 @@ func (a *app) songPage(c *ui.Context, _ palette) {
 	})
 }
 
+func (a *app) songPlaybackNotice(c *ui.Context, track Track) {
+	pl := a.pl
+	if pl == nil || !pl.hasCurrent || pl.current.ID != track.ID || pl.err == "" {
+		return
+	}
+	var (
+		title  = "这首歌暂时放不了"
+		detail = "换一首试试，或者稍后再点重试。"
+		accent = ui.Hex("#e6a08a")
+		tint   = ui.RGBA(37, 28, 25, 0.46)
+	)
+	switch pl.errKind {
+	case playbackFailureVIP:
+		title = "需要咪咕白金会员"
+		detail = "开通会员后可播放，也可以先换一首。"
+		accent = ui.Hex("#e6bd72")
+		tint = ui.RGBA(39, 32, 21, 0.46)
+	case playbackFailureAuth:
+		title = "登录状态已过期"
+		detail = "正在自动重新登录，完成后会接着播放。"
+		accent = ui.Hex("#e69aa6")
+		tint = ui.RGBA(42, 27, 33, 0.46)
+	}
+	ui.Row(c).FillWidth().MaxWidth(720).Margin(0, 0, 10, 0).Padding(8, 12).Radius(12).Gap(9).
+		AlignItems(ui.Center).Background(tint).
+		Border(1, accent.Alpha(0.16)).
+		Shadow(0, 8, 24, -18, ui.RGBA(0, 0, 0, 0.32)).Children(func() {
+		ui.Box(c).Size(26, 26).Radius(999).Background(accent.Alpha(0.11)).Center().Children(func() {
+			ui.Icon(c, iconAlert).Size(13, 13).TextColor(accent)
+		})
+		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(0).Children(func() {
+			ui.Text(c, title).FontSize(12.2).FontWeight(660).SingleLine().
+				TextColor(songWhite.Alpha(0.9))
+			ui.Text(c, detail).FontSize(10.4).SingleLine().TextColor(songWhite.Alpha(0.5))
+		})
+		if pl.errKind == playbackFailureAuth {
+			a.songNoticeButton(c, "song-error-account", "查看登录", true, accent, a.openAccount)
+		} else if pl.errKind == playbackFailureVIP {
+			a.songNoticeButton(c, "song-error-account", "查看账号", false, accent, a.openAccount)
+		}
+		if pl.errKind != playbackFailureAuth {
+			a.songNoticeButton(c, "song-error-retry", "重试", false, accent, pl.retry)
+		}
+	})
+}
+
+func (a *app) songNoticeButton(c *ui.Context, key any, label string, primary bool, accent ui.Color, onClick func()) {
+	bg := songWhite.Alpha(0.07)
+	fg := songWhite.Alpha(0.82)
+	if primary {
+		bg, fg = accent, songInk
+	}
+	b := ui.ButtonBase(c).Key(key).Height(26).PaddingX(10).Radius(999).Center().
+		FocusRing(false).Label(label).Background(bg)
+	if b.Hovered() {
+		if primary {
+			b.Background(accent.Alpha(0.88))
+		} else {
+			b.Background(songWhite.Alpha(0.13))
+		}
+	}
+	b.Children(func() {
+		ui.Text(c, label).FontSize(10.4).FontWeight(640).TextColor(fg)
+	})
+	if b.Clicked() && onClick != nil {
+		onClick()
+	}
+}
+
 func (a *app) songBackdrop(c *ui.Context, cover string, tint ui.Color) {
 	ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().
 		Draw(func(pt *ui.Painter, r ui.Rect) {
@@ -628,6 +697,7 @@ func (a *app) songRightPane(c *ui.Context, p songColors, detail miguSongDetail, 
 	}
 
 	ui.Column(c).Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
+		a.songPlaybackNotice(c, detail.Track)
 		switch a.songPane {
 		case songPaneStage:
 			a.songStage(c, p, detail, active)

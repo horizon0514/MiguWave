@@ -24,6 +24,7 @@ var (
 	miguQRQueryURL       = "https://passport.migu.cn/api/qrcWeb/qrcquery"
 	miguTokenValidateURL = "https://c.musicapp.migu.cn/user/h5/token-validate/v3.0"
 	miguTokenCheckURL    = "https://app.u.nf.migu.cn/pc/user/home-page/trust-uid/v1.0"
+	miguTokenRefreshURL  = "https://c.musicapp.migu.cn/mgateway/api/checkPacMtoken"
 	errMiguTokenStale    = errors.New("咪咕登录状态已失效")
 	miguInputTagRE       = regexp.MustCompile(`(?is)<input\b[^>]*>`)
 	miguInputAttrRE      = regexp.MustCompile(`(?is)\b(id|value)=["']([^"']*)["']`)
@@ -537,4 +538,47 @@ func checkMiguToken(ctx context.Context, token string) error {
 		}
 		return fmt.Errorf("咪咕登录校验返回 %q", response.Code)
 	}
+}
+
+// refreshMiguToken asks the gateway to check the pacmtoken and returns the
+// token it hands back in the pacmtoken response header. This is what the
+// official web SDK does on every checkLogin, and the returned token is the one
+// the SDK stores as the new login token.
+func refreshMiguToken(ctx context.Context, token string) (string, error) {
+	token = normalizeMiguToken(token)
+	if token == "" {
+		return "", errMiguTokenStale
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, miguTokenRefreshURL, nil)
+	if err != nil {
+		return "", err
+	}
+	miguHeaders(req, token)
+	res, err := miguClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("咪咕令牌续期返回 %s", res.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return "", err
+	}
+	var response miguEnvelope
+	if err := json.Unmarshal(body, &response); err != nil {
+		return "", fmt.Errorf("解析咪咕令牌续期结果失败：%w", err)
+	}
+	if response.Code != "000000" {
+		info := strings.TrimSpace(response.Info)
+		if info == "" {
+			info = "咪咕没有返回说明"
+		}
+		return "", fmt.Errorf("咪咕令牌续期失败：%s", info)
+	}
+	if fresh := normalizeMiguToken(res.Header.Get("pacmtoken")); fresh != "" {
+		return fresh, nil
+	}
+	return token, nil
 }

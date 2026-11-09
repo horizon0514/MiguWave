@@ -72,6 +72,12 @@ type app struct {
 	loginSession *mygo.Session
 	loginNav     chan string
 
+	authRetryTrackID string
+	authAutoLoginFor string
+	authRefreshFor   string
+	tokenKeepAlive   bool
+	lastTokenRefresh time.Time
+
 	miguProfile        *miguProfile
 	miguProfileLoading bool
 	miguProfileErr     string
@@ -262,6 +268,7 @@ func (a *app) start() {
 	a.loadRadios()
 	if a.miguToken != "" {
 		a.loadMiguProfile(a.miguToken)
+		a.startMiguTokenKeepAlive()
 	}
 }
 
