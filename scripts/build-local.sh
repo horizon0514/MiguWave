@@ -129,20 +129,19 @@ if $install; then
     done
   fi
 
-  backup=""
-  if [[ -e "$target" ]]; then
-    backup="/tmp/$app_name.app.backup.$(date +%Y%m%d-%H%M%S)"
-    mv "$target" "$backup"
-  fi
-  if ! ditto "$app" "$target"; then
-    if [[ -n "$backup" && ! -e "$target" ]]; then
-      mv "$backup" "$target"
-    fi
+  staged="/Applications/.$app_name.app.installing.$$"
+  trap 'rm -rf "$staged"' EXIT
+  rm -rf "$staged"
+  if ! ditto "$app" "$staged"; then
+    echo "failed to stage $app_name in /Applications" >&2
     exit 1
   fi
+  rm -rf "$target"
+  if ! mv "$staged" "$target"; then
+    echo "failed to move $app_name into place" >&2
+    exit 1
+  fi
+  trap - EXIT
 
   echo "Installed: $target"
-  if [[ -n "$backup" ]]; then
-    echo "Previous app: $backup"
-  fi
 fi
