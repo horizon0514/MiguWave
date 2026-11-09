@@ -101,6 +101,9 @@ jobs:
             cp "dist/windows-$arch/miguwave-setup-"*.exe release/
             cp "dist/windows-$arch/MiguWave.exe" "release/miguwave-${version}-windows-$arch-portable.exe"
           done
+          cp dist/*.dmg release/miguwave.dmg
+          cp dist/windows-amd64/miguwave-setup-*.exe release/miguwave-setup-amd64.exe
+          cp dist/windows-arm64/miguwave-setup-*.exe release/miguwave-setup-arm64.exe
           cd release
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
