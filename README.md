@@ -30,7 +30,7 @@
 
 要求 macOS 12 或更高版本。
 
-1. 打开 `miguwave-0.1.1.dmg`。
+1. 打开 `miguwave-0.1.2.dmg`。
 2. 把「MiguWave」拖进「应用程序」。
 3. 首次启动时，如果 macOS 提示无法验证开发者，在 Finder 中右键应用并选择「打开」。
 
@@ -46,7 +46,7 @@ xattr -dr com.apple.quarantine /Applications/MiguWave.app
 
 要求 Windows 10 1809+ 或 Windows 11，以及 WebView2 Runtime（Windows 11 自带，旧系统可安装 Evergreen Runtime）。
 
-1. 运行 `miguwave-setup-0.1.1-amd64.exe`（Intel / AMD）或 `miguwave-setup-0.1.1-arm64.exe`（ARM64 设备）。
+1. 运行 `miguwave-setup-0.1.2-amd64.exe`（Intel / AMD）或 `miguwave-setup-0.1.2-arm64.exe`（ARM64 设备）。
 2. 安装到当前用户目录，不需要管理员权限。
 3. 当前构建未做代码签名，SmartScreen 提示时点「更多信息」→「仍要运行」。
 4. 如果缺少 WebView2，应用内登录页会提示无法打开；安装 Runtime 后重试即可，扫码和令牌导入不受影响。
@@ -57,7 +57,7 @@ xattr -dr com.apple.quarantine /Applications/MiguWave.app
 - 排行榜：国风热歌榜、音乐风向榜、尖叫新歌榜、尖叫热歌榜、尖叫原创榜，每榜最多 100 首
 - 歌单广场：编辑推荐、歌单百宝箱、深度歌手、歌单上新，歌单详情支持分页加载、播放全部与收藏
 - 歌手：华语、欧美、日韩分类浏览，歌手详情包含简介、热门歌曲与相似歌手
-- 电台：私享电台、时序电台和场景电台；场景电台可直接播放，私人 FM 会明确提示接口限制
+- 电台：私享电台、时序电台和场景电台；私人 FM / 上瘾电台 / 听见不同登录后按账号口味推荐
 - 搜索：歌曲、歌手、专辑搜索，结果分页加载，自动去重
 - 播放：免费曲目直接解析播放；登录咪咕账号后可播放账号有权限的曲目
 - 歌曲详情：封面、专辑、时长、音质与版权信息，支持滚动歌词和点击歌词跳转播放

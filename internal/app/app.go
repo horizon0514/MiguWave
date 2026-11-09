@@ -72,11 +72,15 @@ type app struct {
 	loginSession *mygo.Session
 	loginNav     chan string
 
-	authRetryTrackID string
-	authAutoLoginFor string
-	authRefreshFor   string
-	tokenKeepAlive   bool
-	lastTokenRefresh time.Time
+	authRetryTrackID     string
+	authAutoLoginFor     string
+	authRefreshFor       string
+	tokenKeepAliveCancel context.CancelFunc
+	tokenCheckBusy       bool
+	tokenCheckGen        int
+	lastTokenCheck       time.Time
+	lastTokenRefresh     time.Time
+	miguSessionStale     bool
 
 	miguProfile        *miguProfile
 	miguProfileLoading bool
@@ -607,9 +611,11 @@ func (a *app) loadRadioDetail() {
 	if strings.TrimSpace(radio.ID) == "" {
 		return
 	}
-	if radio.Kind == "private" {
+	personal := personalRadio(radio)
+	if personal && strings.TrimSpace(a.miguToken) == "" {
+		a.radioGen++
 		a.radioLoading = false
-		a.radioErr = "私人 FM 需要咪咕个性化推荐接口，桌面端暂时只接入了场景电台。"
+		a.radioErr = "私人电台需要咪咕账号，登录后会根据你的口味推荐歌曲。"
 		a.refresh()
 		return
 	}
@@ -621,7 +627,14 @@ func (a *app) loadRadioDetail() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
-		detail, err := migu.FetchRadioDetail(ctx, radio, 80)
+		token := a.miguToken
+		var detail miguRadioDetail
+		var err error
+		if personal {
+			detail, err = migu.FetchPersonalRadio(ctx, token, radio, 30)
+		} else {
+			detail, err = migu.FetchRadioDetail(ctx, radio, 80)
+		}
 		a.post(func() {
 			if a.radioGen != gen || a.radioDetail.Radio.ID != radio.ID {
 				return
@@ -633,10 +646,26 @@ func (a *app) loadRadioDetail() {
 			}
 			a.radioDetail = detail
 			if len(detail.Tracks) == 0 {
-				a.radioErr = "这个电台暂时没有返回歌曲"
+				if personal {
+					a.radioErr = "咪咕暂时没有返回个性化推荐，请稍后再试。"
+				} else {
+					a.radioErr = "这个电台暂时没有返回歌曲"
+				}
 			}
 		})
 	}()
+}
+
+func personalRadio(radio miguRadio) bool {
+	switch radio.Kind {
+	case "private", "addict", "discover":
+		return true
+	}
+	switch radio.Track {
+	case "srfm", "dt_sydt", "dt_tjbt":
+		return true
+	}
+	return false
 }
 
 func (a *app) runSearch(q string) {

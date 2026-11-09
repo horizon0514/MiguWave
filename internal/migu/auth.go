@@ -530,9 +530,10 @@ func checkMiguToken(ctx context.Context, token string) error {
 	switch response.Code {
 	case "000000":
 		return nil
-	case "290001":
-		return errMiguTokenStale
 	default:
+		if miguLoginExpired(response.Code, response.Info) {
+			return errMiguTokenStale
+		}
 		if strings.TrimSpace(response.Info) != "" {
 			return fmt.Errorf("咪咕登录校验：%s", response.Info)
 		}
@@ -559,6 +560,9 @@ func refreshMiguToken(ctx context.Context, token string) (string, error) {
 		return "", err
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		return "", errMiguTokenStale
+	}
 	if res.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("咪咕令牌续期返回 %s", res.Status)
 	}
@@ -575,10 +579,41 @@ func refreshMiguToken(ctx context.Context, token string) (string, error) {
 		if info == "" {
 			info = "咪咕没有返回说明"
 		}
+		if miguLoginExpired(response.Code, info) {
+			return "", fmt.Errorf("%w：%s", errMiguTokenStale, info)
+		}
 		return "", fmt.Errorf("咪咕令牌续期失败：%s", info)
 	}
 	if fresh := normalizeMiguToken(res.Header.Get("pacmtoken")); fresh != "" {
 		return fresh, nil
 	}
 	return token, nil
+}
+
+// miguLoginExpired distinguishes a real expired login from a temporary
+// service error. Only the former should make the app ask the user to log in
+// again; network and gateway failures must leave the saved session alone.
+func miguLoginExpired(code, info string) bool {
+	if strings.TrimSpace(code) == "290001" {
+		return true
+	}
+	text := strings.ToLower(strings.TrimSpace(info))
+	for _, marker := range []string{
+		"未登录",
+		"登录失效",
+		"登录已失效",
+		"登录过期",
+		"登录已过期",
+		"令牌失效",
+		"令牌过期",
+		"token失效",
+		"token expired",
+		"invalid token",
+		"not logged in",
+	} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
 }

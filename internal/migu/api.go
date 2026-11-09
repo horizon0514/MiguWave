@@ -111,6 +111,10 @@ func FetchRadioDetail(ctx context.Context, radio Radio, maxTracks int) (RadioDet
 	return fetchMiguRadioDetail(ctx, radio, maxTracks)
 }
 
+func FetchPersonalRadio(ctx context.Context, token string, radio Radio, maxTracks int) (RadioDetail, error) {
+	return fetchMiguPersonalRadio(ctx, token, radio, maxTracks)
+}
+
 func FetchSongDetail(ctx context.Context, token string, track Track) (SongDetail, error) {
 	return fetchMiguSongDetail(ctx, token, track)
 }

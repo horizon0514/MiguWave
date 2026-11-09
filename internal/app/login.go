@@ -118,7 +118,7 @@ func newLoginWebView(win *mygo.Window) (*mygo.WebView, *mygo.Session, error) {
 		Page: mygo.PageOptions{
 			Session:         session,
 			Untrusted:       true,
-			UserAgentSuffix: "MiguWave/0.1.1",
+			UserAgentSuffix: "MiguWave/0.1.2",
 			SwipeNavigation: true,
 			PinchZoom:       true,
 		},
@@ -554,6 +554,7 @@ func (a *app) connectMiguToken(token string, validationErr error) {
 	a.authRefreshFor = ""
 	a.authAutoLoginFor = ""
 	a.lastTokenRefresh = time.Now()
+	a.markMiguSessionValid()
 	a.startMiguTokenKeepAlive()
 }
 
@@ -583,6 +584,7 @@ func (a *app) handlePlaybackAuthFailure(trackID string) {
 						_ = migu.SaveToken(fresh)
 					}
 					a.lastTokenRefresh = time.Now()
+					a.markMiguSessionValid()
 					if a.pl != nil && a.pl.hasCurrent && a.pl.current.ID == trackID {
 						a.toast = "咪咕登录已自动续期，正在重试"
 						a.pl.retry()
@@ -611,54 +613,202 @@ func (a *app) promptMiguRelogin(trackID string) {
 }
 
 const (
-	miguTokenKeepAliveInterval = 6 * time.Hour
-	miguTokenRefreshMinGap     = 30 * time.Minute
+	miguTokenCheckInterval   = 10 * time.Minute
+	miguTokenCheckMinGap     = time.Minute
+	miguTokenRefreshInterval = 30 * time.Minute
+	miguSessionCheckTimeout  = 20 * time.Second
+	miguExpiredNotification  = "migu-session-expired"
 )
 
-// startMiguTokenKeepAlive renews the pacmtoken on launch and every few hours
-// while the app runs. 咪咕's own web SDK does this on each checkLogin by
-// taking the pacmtoken response header from checkPacMtoken.
+// startMiguTokenKeepAlive checks the login on launch and then every few
+// minutes. A valid session is refreshed periodically with checkPacMtoken,
+// which is the same call 咪咕's web SDK makes on every checkLogin. Transient
+// network failures are ignored; only a definitive "login expired" response
+// asks the user to sign in again.
 func (a *app) startMiguTokenKeepAlive() {
-	if a.tokenKeepAlive || a.miguToken == "" {
+	if a.miguToken == "" {
 		return
 	}
-	a.tokenKeepAlive = true
+	if a.tokenKeepAliveCancel != nil {
+		a.tokenKeepAliveCancel()
+	}
+	a.tokenCheckBusy = false
+	a.tokenCheckGen++
+	ctx, cancel := context.WithCancel(context.Background())
+	a.tokenKeepAliveCancel = cancel
 	go func() {
 		a.refreshMiguTokenSoon()
-		ticker := time.NewTicker(miguTokenKeepAliveInterval)
+		ticker := time.NewTicker(miguTokenCheckInterval)
 		defer ticker.Stop()
-		for range ticker.C {
-			a.refreshMiguTokenSoon()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				a.refreshMiguTokenSoon()
+			}
 		}
 	}()
+}
+
+func (a *app) stopMiguTokenKeepAlive() {
+	if a.tokenKeepAliveCancel != nil {
+		a.tokenKeepAliveCancel()
+		a.tokenKeepAliveCancel = nil
+	}
+	a.tokenCheckBusy = false
+	a.tokenCheckGen++
 }
 
 func (a *app) refreshMiguTokenSoon() {
 	a.post(func() {
 		token := a.miguToken
-		if token == "" {
+		if token == "" || a.tokenCheckBusy {
 			return
 		}
-		if !a.lastTokenRefresh.IsZero() && time.Since(a.lastTokenRefresh) < miguTokenRefreshMinGap {
+		if !a.lastTokenCheck.IsZero() && time.Since(a.lastTokenCheck) < miguTokenCheckMinGap {
 			return
 		}
-		a.lastTokenRefresh = time.Now()
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancel()
-			fresh, err := migu.RefreshToken(ctx, token)
-			if err != nil || fresh == "" || fresh == token {
-				return
-			}
-			a.post(func() {
-				if a.miguToken != token {
-					return
-				}
-				a.miguToken = fresh
-				_ = migu.SaveToken(fresh)
-			})
-		}()
+		refreshDue := a.lastTokenRefresh.IsZero() ||
+			time.Since(a.lastTokenRefresh) >= miguTokenRefreshInterval
+		a.tokenCheckBusy = true
+		a.tokenCheckGen++
+		go a.checkMiguSession(token, refreshDue, a.tokenCheckGen)
 	})
+}
+
+func (a *app) checkMiguSession(token string, refreshDue bool, gen int) {
+	defer a.post(func() {
+		if a.tokenCheckGen == gen {
+			a.tokenCheckBusy = false
+			a.lastTokenCheck = time.Now()
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), miguSessionCheckTimeout)
+	defer cancel()
+
+	checkErr := migu.CheckToken(ctx, token)
+	if checkErr == nil {
+		a.post(func() {
+			if a.tokenCheckGen == gen && a.miguToken == token {
+				a.markMiguSessionValid()
+			}
+		})
+		if !refreshDue {
+			return
+		}
+		fresh, err := migu.RefreshToken(ctx, token)
+		switch {
+		case err == nil && fresh != "":
+			a.post(func() {
+				if a.tokenCheckGen == gen {
+					a.applyRefreshedMiguToken(token, fresh)
+				}
+			})
+		case errors.Is(err, errMiguTokenStale):
+			a.post(func() {
+				if a.tokenCheckGen == gen && a.miguToken == token {
+					a.markMiguSessionExpired()
+				}
+			})
+		}
+		return
+	}
+	if !errors.Is(checkErr, errMiguTokenStale) {
+		// Network timeout, gateway error, DNS failure: keep the saved session
+		// and retry on the next tick instead of scaring the user.
+		return
+	}
+
+	fresh, err := migu.RefreshToken(ctx, token)
+	switch {
+	case err == nil && fresh != "":
+		a.post(func() {
+			if a.tokenCheckGen == gen {
+				a.applyRefreshedMiguToken(token, fresh)
+			}
+		})
+	case errors.Is(err, errMiguTokenStale):
+		a.post(func() {
+			if a.tokenCheckGen == gen && a.miguToken == token {
+				a.markMiguSessionExpired()
+			}
+		})
+	case ctx.Err() == nil:
+		// The validity check already said the login is gone. A transient
+		// renewal failure must not hide that from the user.
+		a.post(func() {
+			if a.tokenCheckGen == gen && a.miguToken == token {
+				a.markMiguSessionExpired()
+			}
+		})
+	}
+}
+
+func (a *app) applyRefreshedMiguToken(old, fresh string) {
+	a.lastTokenRefresh = time.Now()
+	if a.miguSessionStale {
+		a.miguSessionStale = false
+		a.closeMiguExpiredNotification()
+	}
+	if a.miguToken != old {
+		return
+	}
+	a.miguToken = fresh
+	_ = migu.SaveToken(fresh)
+}
+
+func (a *app) markMiguSessionValid() {
+	if !a.miguSessionStale {
+		return
+	}
+	a.miguSessionStale = false
+	a.closeMiguExpiredNotification()
+}
+
+func (a *app) markMiguSessionExpired() {
+	if a.miguSessionStale {
+		return
+	}
+	a.miguSessionStale = true
+	a.toast = "咪咕登录已过期，请重新登录"
+	if a.authPhase == miguAuthIdle || a.authPhase == miguAuthConnected {
+		a.authPhase = miguAuthInvalid
+	}
+	if a.accountOpen {
+		a.authNotice = "咪咕登录已过期，自动续期没有成功，请重新登录。"
+	}
+	a.refresh()
+	a.showMiguExpiredNotification()
+}
+
+func (a *app) showMiguExpiredNotification() {
+	if !mygo.NotificationsSupported() {
+		return
+	}
+	note := mygo.NewNotification(mygo.NotificationOptions{
+		ID:    miguExpiredNotification,
+		Title: "咪咕登录已过期",
+		Body:  "自动续期没有成功。点此重新登录，恢复会员曲目播放。",
+		Group: "migu-account",
+	})
+	note.OnClick(func() {
+		a.post(func() {
+			a.showSettings()
+			a.openAccount()
+		})
+	})
+	go func() {
+		_ = note.Show()
+	}()
+}
+
+func (a *app) closeMiguExpiredNotification() {
+	if !mygo.NotificationsSupported() {
+		return
+	}
+	mygo.NewNotification(mygo.NotificationOptions{ID: miguExpiredNotification}).Close()
 }
 
 func (a *app) retryAfterRelogin() {

@@ -368,6 +368,36 @@ func TestRefreshMiguToken(t *testing.T) {
 	}
 }
 
+func TestRefreshMiguTokenReportsExpiredLogin(t *testing.T) {
+	old := miguTokenRefreshURL
+	defer func() { miguTokenRefreshURL = old }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"code": "290001", "info": "请先登录"})
+	}))
+	defer server.Close()
+
+	miguTokenRefreshURL = server.URL
+	if _, err := refreshMiguToken(context.Background(), "stale-token"); !errors.Is(err, errMiguTokenStale) {
+		t.Fatalf("stale refresh err = %v", err)
+	}
+}
+
+func TestRefreshMiguTokenTreatsUnauthorizedAsExpired(t *testing.T) {
+	old := miguTokenRefreshURL
+	defer func() { miguTokenRefreshURL = old }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	miguTokenRefreshURL = server.URL
+	if _, err := refreshMiguToken(context.Background(), "stale-token"); !errors.Is(err, errMiguTokenStale) {
+		t.Fatalf("unauthorized refresh err = %v", err)
+	}
+}
+
 func TestMiguQRResponseAcceptsStringStatus(t *testing.T) {
 	var response miguQRResponse
 	if err := json.Unmarshal([]byte(`{"status":"4074","message":"未扫码","result":{}}`), &response); err != nil {

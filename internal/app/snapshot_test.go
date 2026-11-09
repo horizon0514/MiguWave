@@ -370,9 +370,9 @@ func sampleRadioGroups() []miguRadioGroup {
 		{
 			Title: "私享电台",
 			Items: []miguRadio{
-				{ID: "r-private", Title: "私人 FM", Subtitle: "专属音乐雷达", Cover: "snap://r-1", Kind: "private"},
-				{ID: "r-addict", Title: "上瘾电台", Subtitle: "一听上瘾", Cover: "snap://r-2", Kind: "private"},
-				{ID: "r-different", Title: "听见不同", Subtitle: "发现惊喜", Cover: "snap://r-3", Kind: "private"},
+				{ID: "r-private", Title: "私人 FM", Subtitle: "专属音乐雷达", Cover: "snap://r-1", Kind: "private", Track: "srfm"},
+				{ID: "r-addict", Title: "上瘾电台", Subtitle: "一听上瘾", Cover: "snap://r-2", Kind: "addict", Track: "dt_sydt"},
+				{ID: "r-different", Title: "听见不同", Subtitle: "发现惊喜", Cover: "snap://r-3", Kind: "discover", Track: "dt_tjbt"},
 			},
 		},
 		{

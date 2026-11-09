@@ -56,6 +56,10 @@ func (a *app) closeAccount() {
 	a.accountOpen = false
 	a.stopMiguAuth()
 	a.closeLoginView()
+	if a.page == pageRadioDetail && a.radioErr != "" && a.miguToken != "" && personalRadio(a.radioDetail.Radio) {
+		a.loadRadioDetail()
+		return
+	}
 	a.refresh()
 }
 
@@ -307,6 +311,9 @@ func (a *app) verifyMiguTokenValue(raw string, keepOnNetworkError bool) {
 					a.miguProfile = nil
 				}
 				a.miguToken = token
+				a.lastTokenRefresh = time.Now()
+				a.markMiguSessionValid()
+				a.startMiguTokenKeepAlive()
 				a.authPhase = miguAuthConnected
 				a.authQR = nil
 				a.closeLoginView()
@@ -322,6 +329,9 @@ func (a *app) verifyMiguTokenValue(raw string, keepOnNetworkError bool) {
 				if keepOnNetworkError {
 					a.miguToken = ""
 					_ = migu.SaveToken("")
+					a.stopMiguTokenKeepAlive()
+					a.closeMiguExpiredNotification()
+					a.miguSessionStale = false
 					if a.authMode == authModeBrowser {
 						a.startBrowserLogin()
 						return
@@ -388,6 +398,9 @@ func (a *app) clearMiguToken() {
 	a.authRetryTrackID = ""
 	a.authAutoLoginFor = ""
 	a.authRefreshFor = ""
+	a.stopMiguTokenKeepAlive()
+	a.closeMiguExpiredNotification()
+	a.miguSessionStale = false
 	clearMiguLoginSession()
 	if err := migu.SaveToken(""); err != nil {
 		a.authNotice = "已清除当前登录状态，但本地令牌删除失败：" + friendlyError(err)

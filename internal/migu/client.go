@@ -111,6 +111,7 @@ type miguSong struct {
 type miguFeedItem struct {
 	View        string     `json:"view"`
 	Action      string     `json:"action"`
+	Track       string     `json:"track"`
 	ResID       string     `json:"resId"`
 	ResType     flexString `json:"resType"`
 	CopyrightID string     `json:"copyrightId"`
@@ -162,11 +163,18 @@ func miguHeaders(req *http.Request, token string) {
 }
 
 func miguGet(ctx context.Context, endpoint, token string) ([]byte, error) {
+	return miguGetWithHeaders(ctx, endpoint, token, nil)
+}
+
+func miguGetWithHeaders(ctx context.Context, endpoint, token string, headers map[string]string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
 	miguHeaders(req, token)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 	res, err := miguClient.Do(req)
 	if err != nil {
 		return nil, err

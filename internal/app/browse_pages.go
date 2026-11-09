@@ -556,18 +556,33 @@ func (a *app) radioDetailPage(c *ui.Context, p palette) {
 
 		switch {
 		case a.radioErr != "":
+			title := "这个电台暂时不能在桌面端播放"
+			actionLabel := "打开咪咕音乐"
+			actionIcon := iconExternal
+			action := func() { c.OpenURL("https://music.migu.cn/") }
+			if personalRadio(radio) {
+				if a.miguToken == "" {
+					title = "私人电台需要先登录咪咕账号"
+					actionLabel = "连接咪咕账号"
+					actionIcon = iconSpark
+					action = a.openAccount
+				} else {
+					title = "这个私人电台暂时没有准备好"
+					actionLabel = "重新加载"
+					actionIcon = iconRepeat
+					action = a.loadRadioDetail
+				}
+			}
 			ui.Row(c).FillWidth().Padding(18, 20).Radius(14).Background(p.panel).
 				Border(1, p.line).AlignItems(ui.Center).Gap(14).Children(func() {
 				ui.Box(c).Size(38, 38).Radius(12).Background(p.accent.Alpha(0.1)).Center().Children(func() {
 					ui.Icon(c, iconRadio).Size(18, 18).TextColor(p.accent)
 				})
 				ui.Column(c).Grow(1).Gap(3).Children(func() {
-					ui.Text(c, "这个电台暂时不能在桌面端播放").FontSize(12.5).FontWeight(650)
+					ui.Text(c, title).FontSize(12.5).FontWeight(650)
 					ui.Text(c, a.radioErr).FontSize(11).TextColor(p.muted).LineHeight(1.5)
 				})
-				a.ghostButton(c, "打开咪咕音乐", iconExternal, func() {
-					c.OpenURL("https://music.migu.cn/")
-				})
+				a.ghostButton(c, actionLabel, actionIcon, action)
 			})
 		case a.radioLoading && len(detail.Tracks) == 0:
 			a.loadingPanel(c, p, "正在加载电台歌曲…", 180)
@@ -590,7 +605,7 @@ func (a *app) radioDetailPage(c *ui.Context, p palette) {
 func (a *app) homeRadioLists() (private, scene []miguRadio) {
 	for _, group := range a.radioGroups {
 		for _, radio := range group.Items {
-			if radio.Kind == "private" {
+			if personalRadio(radio) {
 				private = append(private, radio)
 			} else if radio.Kind == "scene" {
 				scene = append(scene, radio)
@@ -734,11 +749,16 @@ func radioBackLabel(from pageKind) string {
 }
 
 func radioKindLabel(kind string) string {
-	if kind == "private" {
+	switch kind {
+	case "private":
 		return "私人 FM"
-	}
-	if kind == "podcast" {
+	case "addict":
+		return "上瘾电台"
+	case "discover":
+		return "听见不同"
+	case "podcast":
 		return "播客"
+	default:
+		return "场景电台"
 	}
-	return "场景电台"
 }

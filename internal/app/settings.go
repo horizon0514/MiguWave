@@ -103,15 +103,22 @@ func (a *app) settingsAccountCard(c *ui.Context, p palette) {
 				ui.Text(c, "咪咕账号只用于读取有权限的曲库与会员权益").FontSize(11).TextColor(p.muted)
 			})
 			connected := a.miguToken != ""
+			stale := connected && a.miguSessionStale
+			dot := statusDot(p, connected && !stale)
+			if stale {
+				dot = p.accent
+			}
 			ui.Row(c).Gap(6).Padding(4, 8).Radius(999).
-				Background(statusDot(p, connected).Alpha(0.13)).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Size(5, 5).Radius(999).Background(statusDot(p, connected))
+				Background(dot.Alpha(0.13)).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(5, 5).Radius(999).Background(dot)
 				label := "未连接"
-				if connected {
-					label = "已连接"
-				}
 				color := p.faint
-				if connected {
+				switch {
+				case stale:
+					label = "登录已过期"
+					color = p.accent
+				case connected:
+					label = "已连接"
 					color = ui.Hex("#1b8e52")
 				}
 				ui.Text(c, label).FontSize(9.5).FontWeight(650).TextColor(color)
@@ -124,7 +131,9 @@ func (a *app) settingsAccountCard(c *ui.Context, p palette) {
 				title := "还没有连接咪咕账号"
 				if a.miguToken != "" {
 					title = "咪咕账号已连接"
-					if a.miguProfile != nil && a.miguProfile.Nickname != "" {
+					if a.miguSessionStale {
+						title = "咪咕登录已过期"
+					} else if a.miguProfile != nil && a.miguProfile.Nickname != "" {
 						title = a.miguProfile.Nickname
 					}
 				}
@@ -132,6 +141,9 @@ func (a *app) settingsAccountCard(c *ui.Context, p palette) {
 				subtitle := "当前只播放免费曲目"
 				if a.miguToken != "" {
 					subtitle = firstNonEmpty(a.miguProfileMeta(), "账号有权限的曲目可以直接播放")
+					if a.miguSessionStale {
+						subtitle = "自动续期没有成功，请重新登录后继续播放会员曲目"
+					}
 				}
 				ui.Text(c, subtitle).FontSize(11).TextColor(p.muted).SingleLine()
 				if a.miguProfileLoading {

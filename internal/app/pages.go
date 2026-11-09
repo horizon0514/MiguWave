@@ -642,15 +642,26 @@ func (a *app) accountModal(c *ui.Context, p palette) {
 					ui.Text(c, "登录咪咕账号，完整播放会员与已购曲目").FontSize(11.5).TextColor(p.muted)
 				})
 				if a.miguToken != "" {
-					ui.Row(c).Gap(6).Padding(5, 9).Radius(999).Background(ui.RGBA(37, 184, 107, 0.12)).
+					stale := a.miguSessionStale
+					badge := ui.Hex("#25b86b")
+					badgeColor := ui.Hex("#1b8e52")
+					badgeLabel := "已连接"
+					badgeTint := ui.RGBA(37, 184, 107, 0.12)
+					if stale {
+						badge = p.accent
+						badgeColor = p.accent
+						badgeLabel = "登录已过期"
+						badgeTint = ui.RGBA(255, 38, 103, 0.12)
+					}
+					ui.Row(c).Gap(6).Padding(5, 9).Radius(999).Background(badgeTint).
 						AlignItems(ui.Center).Children(func() {
-						ui.Box(c).Size(5, 5).Radius(999).Background(ui.Hex("#25b86b"))
-						ui.Text(c, "已连接").FontSize(10.5).FontWeight(650).TextColor(ui.Hex("#1b8e52"))
+						ui.Box(c).Size(5, 5).Radius(999).Background(badge)
+						ui.Text(c, badgeLabel).FontSize(10.5).FontWeight(650).TextColor(badgeColor)
 					})
 				}
 			})
 
-			if a.miguToken != "" &&
+			if a.miguToken != "" && !a.miguSessionStale &&
 				(a.authPhase == miguAuthConnected || a.authPhase == miguAuthChecking) {
 				a.accountConnectedPanel(c, p)
 			} else {

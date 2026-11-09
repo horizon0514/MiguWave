@@ -20,9 +20,20 @@ var (
 	miguSingerSongEndpoint     = "https://app.c.nf.migu.cn/bmw/singer/song/v1.0"
 	miguRadioPageEndpoint      = "https://app.c.nf.migu.cn/pc/bmw/page-data/music-radio/v1.0"
 	miguRadioSongEndpoint      = "https://app.c.nf.migu.cn/pc/column/music-radio/scene/song/v3.0"
+	miguPrivateFMEndpoint      = "https://app.c.nf.migu.cn/pc/resource-dataloader/recommend-song/v1.0"
+	miguRecommendRadioEndpoint = "https://app.c.nf.migu.cn/pc/column/music-radio/recommend/song/v2.0"
 )
 
 const miguPlaylistPageSize = 50
+
+const (
+	miguRadioKindPrivate  = "private"
+	miguRadioKindAddict   = "addict"
+	miguRadioKindDiscover = "discover"
+	miguRadioKindScene    = "scene"
+)
+
+const miguRadioDeviceID = "6F6D3E50-4FDF-45C2-A30A-1CB984F0250C"
 
 type miguPlaylistSection struct {
 	Title string
@@ -78,6 +89,7 @@ type miguRadio struct {
 	Subtitle string
 	Cover    string
 	Kind     string
+	Track    string
 }
 
 type miguRadioGroup struct {
@@ -540,7 +552,9 @@ func fetchMiguRadioGroups(ctx context.Context) ([]miguRadioGroup, error) {
 		case "ZJ-MusicRadio-Private-Scroll":
 			items := miguRadiosFromItems(section.Contents)
 			for i := range items {
-				items[i].Kind = "private"
+				if items[i].Kind == "" {
+					items[i].Kind = miguRadioKindPrivate
+				}
 			}
 			if len(items) > 0 {
 				groups = append(groups, miguRadioGroup{
@@ -551,7 +565,9 @@ func fetchMiguRadioGroups(ctx context.Context) ([]miguRadioGroup, error) {
 		case "ZJ-MusicRadio-Timing-Scroll":
 			items := miguRadiosFromItems(section.Contents)
 			for i := range items {
-				items[i].Kind = "scene"
+				if items[i].Kind == "" {
+					items[i].Kind = miguRadioKindScene
+				}
 			}
 			if len(items) > 0 {
 				groups = append(groups, miguRadioGroup{
@@ -563,7 +579,9 @@ func fetchMiguRadioGroups(ctx context.Context) ([]miguRadioGroup, error) {
 			categoryGroups := miguRadioCategoryGroups(section)
 			for i := range categoryGroups {
 				for j := range categoryGroups[i].Items {
-					categoryGroups[i].Items[j].Kind = "scene"
+					if categoryGroups[i].Items[j].Kind == "" {
+						categoryGroups[i].Items[j].Kind = miguRadioKindScene
+					}
 				}
 			}
 			groups = append(groups, categoryGroups...)
@@ -626,7 +644,9 @@ func miguRadiosFromItems(contents []json.RawMessage) []miguRadio {
 			Title:    cleanDisplay(item.Txt),
 			Subtitle: cleanDisplay(item.Txt2),
 			Cover:    miguImage(item.Img),
+			Track:    strings.TrimSpace(item.Track),
 		}
+		radio.Kind = miguPersonalRadioKind(radio.Track)
 		if radio.ID == "" || radio.Title == "" || seen[radio.ID] {
 			continue
 		}
@@ -634,6 +654,28 @@ func miguRadiosFromItems(contents []json.RawMessage) []miguRadio {
 		items = append(items, radio)
 	}
 	return items
+}
+
+func miguPersonalRadioKind(track string) string {
+	switch strings.TrimSpace(track) {
+	case "srfm":
+		return miguRadioKindPrivate
+	case "dt_sydt":
+		return miguRadioKindAddict
+	case "dt_tjbt":
+		return miguRadioKindDiscover
+	default:
+		return ""
+	}
+}
+
+func miguIsPersonalRadioKind(kind string) bool {
+	switch kind {
+	case miguRadioKindPrivate, miguRadioKindAddict, miguRadioKindDiscover:
+		return true
+	default:
+		return false
+	}
 }
 
 func fetchMiguRadioDetail(ctx context.Context, radio miguRadio, maxTracks int) (miguRadioDetail, error) {
@@ -710,6 +752,146 @@ func fetchMiguRadioSongs(ctx context.Context, id string, page int) ([]Track, int
 	}
 	next, _ := strconv.Atoi(strings.TrimSpace(string(data.NextPageNo)))
 	return miguDedupeTracks(tracks), next, nil
+}
+
+func fetchMiguPersonalRadio(ctx context.Context, token string, radio miguRadio, maxTracks int) (miguRadioDetail, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return miguRadioDetail{}, errors.New("私人电台需要先登录咪咕账号")
+	}
+	if maxTracks <= 0 {
+		maxTracks = 20
+	}
+	if maxTracks > 50 {
+		maxTracks = 50
+	}
+	kind := radio.Kind
+	if !miguIsPersonalRadioKind(kind) {
+		kind = miguPersonalRadioKind(radio.Track)
+	}
+	if !miguIsPersonalRadioKind(kind) {
+		kind = miguRadioKindPrivate
+	}
+
+	detail := miguRadioDetail{Radio: radio}
+	seen := map[string]bool{}
+	stale := 0
+	for attempt := 0; attempt < 12 && len(detail.Tracks) < maxTracks; attempt++ {
+		action := 1
+		if attempt > 0 {
+			action = 2
+		}
+		var songs []miguSong
+		var err error
+		switch kind {
+		case miguRadioKindAddict, miguRadioKindDiscover:
+			songs, err = fetchMiguRecommendRadioSongs(ctx, token, kind, action)
+		default:
+			songs, err = fetchMiguPrivateFMSongs(ctx, token, action)
+		}
+		if err != nil {
+			if attempt == 0 {
+				return miguRadioDetail{}, err
+			}
+			break
+		}
+		if len(songs) == 0 {
+			break
+		}
+		added := 0
+		for _, song := range songs {
+			track := miguSongTrack(song)
+			if track.ID == "" || seen[track.ID] {
+				continue
+			}
+			seen[track.ID] = true
+			detail.Tracks = append(detail.Tracks, track)
+			added++
+			if len(detail.Tracks) >= maxTracks {
+				break
+			}
+		}
+		if added == 0 {
+			stale++
+			if stale >= 2 {
+				break
+			}
+		} else {
+			stale = 0
+		}
+	}
+	detail.Total = len(detail.Tracks)
+	return detail, nil
+}
+
+func fetchMiguPrivateFMSongs(ctx context.Context, token string, action int) ([]miguSong, error) {
+	values := url.Values{}
+	values.Set("scene", "PRIVATE_FM")
+	values.Set("algorithm", "v1")
+	values.Set("action", strconv.Itoa(action))
+	body, err := miguGetWithHeaders(ctx, miguPrivateFMEndpoint+"?"+values.Encode(), token, miguRadioHeaders(false))
+	if err != nil {
+		return nil, err
+	}
+	var env miguEnvelope
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, err
+	}
+	if env.Code != "" && env.Code != "000000" {
+		if miguLoginExpired(env.Code, env.Info) {
+			return nil, fmt.Errorf("%w：请重新登录咪咕账号", errMiguTokenStale)
+		}
+		return nil, fmt.Errorf("咪咕私人 FM：%s", env.Info)
+	}
+	var data struct {
+		SongItemList []miguSong `json:"songItemList"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		return nil, err
+	}
+	return data.SongItemList, nil
+}
+
+func fetchMiguRecommendRadioSongs(ctx context.Context, token, kind string, action int) ([]miguSong, error) {
+	radioType := "1"
+	if kind == miguRadioKindAddict {
+		radioType = "2"
+	}
+	values := url.Values{}
+	values.Set("type", radioType)
+	values.Set("remain", "0")
+	values.Set("actionId", strconv.Itoa(action))
+	body, err := miguGetWithHeaders(ctx, miguRecommendRadioEndpoint+"?"+values.Encode(), token, miguRadioHeaders(true))
+	if err != nil {
+		return nil, err
+	}
+	var env miguEnvelope
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, err
+	}
+	if env.Code != "" && env.Code != "000000" {
+		if miguLoginExpired(env.Code, env.Info) {
+			return nil, fmt.Errorf("%w：请重新登录咪咕账号", errMiguTokenStale)
+		}
+		return nil, fmt.Errorf("咪咕推荐电台：%s", env.Info)
+	}
+	var songs []miguSong
+	if err := json.Unmarshal(env.Data, &songs); err != nil {
+		return nil, err
+	}
+	return songs, nil
+}
+
+func miguRadioHeaders(recommend bool) map[string]string {
+	headers := map[string]string{
+		"deviceId":   miguRadioDeviceID,
+		"activityId": "MUSIC-WWW",
+		"appId":      "h5",
+	}
+	if recommend {
+		headers["recommendstatus"] = "1"
+	}
+	return headers
 }
 
 func formatMiguCount(raw string) string {
