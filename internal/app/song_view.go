@@ -599,6 +599,7 @@ func (a *app) songTransport(c *ui.Context, track Track) {
 			enabled && a.pl.shuffle, 17, func() {
 				if a.pl != nil {
 					a.pl.shuffle = !a.pl.shuffle
+					a.pl.scheduleAutoFade()
 					a.refresh()
 				}
 			})
@@ -622,6 +623,7 @@ func (a *app) songTransport(c *ui.Context, track Track) {
 			repeatActive, 17, func() {
 				if a.pl != nil {
 					a.pl.repeat = (a.pl.repeat + 1) % 3
+					a.pl.scheduleAutoFade()
 					a.refresh()
 				}
 			})

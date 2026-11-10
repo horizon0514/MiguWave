@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -41,7 +43,12 @@ const (
 	playbackFailureAuth
 )
 
-const seekFadeDelay = 25 * time.Millisecond
+const (
+	seekFadeDelay       = 25 * time.Millisecond
+	crossfadeDuration   = 1200 * time.Millisecond
+	crossfadeStartLead  = crossfadeDuration + 150*time.Millisecond
+	crossfadeFrameDelay = 16 * time.Millisecond
+)
 
 var streamClient = &http.Client{
 	Transport: &http.Transport{
@@ -82,6 +89,33 @@ type player struct {
 	seekGen    int
 	seekTarget time.Duration
 	seeking    bool
+
+	prefetchMu   sync.Mutex
+	prefetch     *prefetchJob
+	cacheRootDir string
+
+	mixMu         sync.Mutex
+	voices        []*audioVoice
+	fadeGen       int
+	autoFadeTimer *time.Timer
+}
+
+type prefetchJob struct {
+	track  Track
+	key    string
+	cancel context.CancelFunc
+	done   chan struct{}
+	err    error
+}
+
+type audioVoice struct {
+	out  *audio.Player
+	gain float64
+}
+
+type fadingVoice struct {
+	voice     *audioVoice
+	startGain float64
 }
 
 func newPlayer(a *app) *player {
@@ -136,19 +170,20 @@ func (p *player) loadAt(pos time.Duration) {
 	if p.at < 0 || p.at >= len(p.queue) {
 		return
 	}
+	p.cancelAutoFade()
 	p.gen++
 	gen := p.gen
 	if p.cancel != nil {
 		p.cancel()
 		p.cancel = nil
 	}
-	if p.out != nil {
-		p.out.Close()
-		p.out = nil
-	}
+	// Keep the current voice alive until the replacement is ready, then
+	// crossfade the two instead of cutting to silence.
+	p.out = nil
 	p.current = p.queue[p.at]
 	p.hasCurrent = true
 	p.seeking = false
+	p.cancelPrefetchExcept(p.current)
 	if p.app != nil {
 		p.app.followPlayerTrack(p.current)
 	}
@@ -236,6 +271,7 @@ func (p *player) loadArtwork(gen int, t Track) {
 
 func (p *player) start(out *audio.Player, t Track, art []byte) {
 	p.out = out
+	p.addVoice(out, 0)
 	p.playing = true
 	p.loading = false
 	p.progress = 1
@@ -244,7 +280,6 @@ func (p *player) start(out *audio.Player, t Track, art []byte) {
 	if d := out.Duration(); d > 0 {
 		p.duration = d
 	}
-	out.SetVolume(p.volume)
 	if p.pending > 0 {
 		out.Seek(p.pending)
 		p.pending = 0
@@ -254,9 +289,12 @@ func (p *player) start(out *audio.Player, t Track, art []byte) {
 		p.app.post(func() { p.ended(gen) })
 	})
 	out.Play()
+	p.crossfadeTo(out)
 	p.app.noteRecent(t)
 	p.syncNowPlaying(art)
 	p.app.refresh()
+	p.schedulePrefetch()
+	p.scheduleAutoFade()
 }
 
 func (p *player) fail(gen int, err error) {
@@ -264,6 +302,8 @@ func (p *player) fail(gen int, err error) {
 		if p.gen != gen {
 			return
 		}
+		p.cancelAutoFade()
+		p.stopVoices(true)
 		p.loading = false
 		p.playing = false
 		p.pending = 0
@@ -337,11 +377,13 @@ func (p *player) toggle() {
 		return
 	}
 	if p.playing {
-		p.out.Pause()
+		p.cancelAutoFade()
+		p.pauseVoices()
 		p.playing = false
 	} else {
 		p.out.Play()
 		p.playing = true
+		p.scheduleAutoFade()
 	}
 	p.syncNowPlaying(nil)
 	p.app.refresh()
@@ -355,9 +397,8 @@ func (p *player) retry() {
 }
 
 func (p *player) stop() {
-	if p.out != nil {
-		p.out.Stop()
-	}
+	p.cancelAutoFade()
+	p.stopVoices(false)
 	p.playing = false
 	p.syncNowPlaying(nil)
 	p.app.refresh()
@@ -377,33 +418,52 @@ func (p *player) next() {
 				p.playing = true
 				p.syncNowPlaying(nil)
 				p.app.refresh()
+				p.scheduleAutoFade()
 			}
 		} else {
 			p.loadAt(p.pending)
 		}
 		return
 	}
+	next := p.nextIndex()
+	if next < 0 {
+		p.playing = false
+		if p.out != nil {
+			p.out.Pause()
+		}
+		p.syncNowPlaying(nil)
+		p.app.refresh()
+		return
+	}
+	p.at = next
+	p.load()
+}
+
+// nextIndex is shared by playback and prefetch so shuffle picks the same track
+// that will actually start next.
+func (p *player) nextIndex() int {
+	if len(p.queue) == 0 || p.at < 0 || p.at >= len(p.queue) {
+		return -1
+	}
+	if p.repeat == repeatOne {
+		return p.at
+	}
 	next := p.at + 1
 	if p.shuffle && len(p.queue) > 1 {
-		next = (next + 1 + int(time.Now().UnixNano()%int64(len(p.queue)-1))) % len(p.queue)
+		hash := sha1.Sum([]byte(p.current.ID))
+		jitter := int(uint32(hash[0])<<8|uint32(hash[1])) % (len(p.queue) - 1)
+		next = (p.at + 1 + jitter) % len(p.queue)
 		if next == p.at {
 			next = (next + 1) % len(p.queue)
 		}
 	}
 	if next >= len(p.queue) {
 		if p.repeat == repeatOff {
-			p.playing = false
-			if p.out != nil {
-				p.out.Pause()
-			}
-			p.syncNowPlaying(nil)
-			p.app.refresh()
-			return
+			return -1
 		}
 		next = 0
 	}
-	p.at = next
-	p.load()
+	return next
 }
 
 func (p *player) prev() {
@@ -434,6 +494,7 @@ func (p *player) jumpTo(index int) {
 }
 
 func (p *player) seek(pos time.Duration) {
+	p.cancelAutoFade()
 	if p.out == nil {
 		p.pending = max(0, pos)
 		p.syncNowPlaying(nil)
@@ -469,6 +530,7 @@ func (p *player) seek(pos time.Duration) {
 			p.seeking = false
 			p.syncNowPlaying(nil)
 			p.app.refresh()
+			p.scheduleAutoFade()
 		})
 	})
 	p.syncNowPlaying(nil)
@@ -486,9 +548,200 @@ func (p *player) position() time.Duration {
 }
 
 func (p *player) setVolume(v float64) {
+	p.mixMu.Lock()
+	defer p.mixMu.Unlock()
 	p.volume = min(1, max(0, v))
-	if p.out != nil {
-		p.out.SetVolume(p.volume)
+	for _, voice := range p.voices {
+		voice.out.SetVolume(p.volume * voice.gain)
+	}
+}
+
+func (p *player) addVoice(out *audio.Player, gain float64) *audioVoice {
+	p.mixMu.Lock()
+	defer p.mixMu.Unlock()
+	for _, voice := range p.voices {
+		if voice.out == out {
+			voice.gain = gain
+			voice.out.SetVolume(p.volume * gain)
+			return voice
+		}
+	}
+	voice := &audioVoice{out: out, gain: gain}
+	voice.out.SetVolume(p.volume * gain)
+	p.voices = append(p.voices, voice)
+	return voice
+}
+
+func (p *player) crossfadeTo(out *audio.Player) {
+	p.mixMu.Lock()
+	p.fadeGen++
+	gen := p.fadeGen
+	var target *audioVoice
+	var retiring []fadingVoice
+	for _, voice := range p.voices {
+		if voice.out == out {
+			target = voice
+			continue
+		}
+		retiring = append(retiring, fadingVoice{voice: voice, startGain: voice.gain})
+	}
+	if target == nil {
+		target = &audioVoice{out: out}
+		p.voices = append(p.voices, target)
+	}
+	target.gain = 0
+	target.out.SetVolume(0)
+	if len(retiring) == 0 {
+		target.gain = 1
+		target.out.SetVolume(p.volume)
+		p.mixMu.Unlock()
+		return
+	}
+	p.mixMu.Unlock()
+
+	go p.runCrossfade(gen, target, retiring)
+}
+
+func (p *player) runCrossfade(gen int, target *audioVoice, retiring []fadingVoice) {
+	ticker := time.NewTicker(crossfadeFrameDelay)
+	defer ticker.Stop()
+	start := time.Now()
+	for range ticker.C {
+		progress := min(1, max(0, float64(time.Since(start))/float64(crossfadeDuration)))
+		incoming := math.Sin(progress * math.Pi / 2)
+		outgoing := math.Cos(progress * math.Pi / 2)
+
+		p.mixMu.Lock()
+		if p.fadeGen != gen {
+			p.mixMu.Unlock()
+			return
+		}
+		if !p.hasVoiceLocked(target) {
+			p.mixMu.Unlock()
+			return
+		}
+		target.gain = incoming
+		target.out.SetVolume(p.volume * incoming)
+		for _, fade := range retiring {
+			if !p.hasVoiceLocked(fade.voice) {
+				continue
+			}
+			fade.voice.gain = fade.startGain * outgoing
+			fade.voice.out.SetVolume(p.volume * fade.voice.gain)
+		}
+		if progress < 1 {
+			p.mixMu.Unlock()
+			continue
+		}
+		for _, fade := range retiring {
+			p.removeVoiceLocked(fade.voice)
+			fade.voice.out.SetVolume(0)
+			fade.voice.out.Close()
+		}
+		target.gain = 1
+		target.out.SetVolume(p.volume)
+		p.mixMu.Unlock()
+		return
+	}
+}
+
+func (p *player) hasVoiceLocked(want *audioVoice) bool {
+	for _, voice := range p.voices {
+		if voice == want {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *player) removeVoiceLocked(want *audioVoice) {
+	for i, voice := range p.voices {
+		if voice == want {
+			p.voices = append(p.voices[:i], p.voices[i+1:]...)
+			return
+		}
+	}
+}
+
+func (p *player) pauseVoices() {
+	p.mixMu.Lock()
+	defer p.mixMu.Unlock()
+	p.fadeGen++
+	for _, voice := range p.voices {
+		voice.out.Pause()
+	}
+	p.closeRetiringVoicesLocked()
+}
+
+func (p *player) stopVoices(closeAll bool) {
+	p.mixMu.Lock()
+	defer p.mixMu.Unlock()
+	p.fadeGen++
+	for _, voice := range p.voices {
+		voice.out.Stop()
+	}
+	if closeAll {
+		for _, voice := range p.voices {
+			voice.out.Close()
+		}
+		p.voices = nil
+		return
+	}
+	p.closeRetiringVoicesLocked()
+}
+
+func (p *player) closeRetiringVoicesLocked() {
+	kept := p.voices[:0]
+	for _, voice := range p.voices {
+		if voice.out == p.out {
+			kept = append(kept, voice)
+			continue
+		}
+		voice.out.SetVolume(0)
+		voice.out.Close()
+	}
+	p.voices = kept
+}
+
+func (p *player) scheduleAutoFade() {
+	p.cancelAutoFade()
+	if p.out == nil || !p.playing || p.loading || p.repeat == repeatOne {
+		return
+	}
+	next := p.nextIndex()
+	if next < 0 || next == p.at || p.duration <= 0 {
+		return
+	}
+	delay := p.duration - p.position() - crossfadeStartLead
+	if delay < 100*time.Millisecond {
+		delay = 100 * time.Millisecond
+	}
+	gen := p.gen
+	p.autoFadeTimer = time.AfterFunc(delay, func() {
+		if p.app == nil {
+			return
+		}
+		p.app.post(func() { p.autoCrossfade(gen) })
+	})
+}
+
+func (p *player) autoCrossfade(gen int) {
+	p.autoFadeTimer = nil
+	if p.gen != gen || !p.playing || p.loading || p.out == nil || p.repeat == repeatOne {
+		return
+	}
+	next := p.nextIndex()
+	if next < 0 || next == p.at {
+		return
+	}
+	p.at = next
+	p.load()
+}
+
+func (p *player) cancelAutoFade() {
+	if p.autoFadeTimer != nil {
+		p.autoFadeTimer.Stop()
+		p.autoFadeTimer = nil
 	}
 }
 
@@ -496,11 +749,13 @@ func (p *player) ended(gen int) {
 	if p.gen != gen || !p.playing {
 		return
 	}
+	p.cancelAutoFade()
 	if p.repeat == repeatOne {
 		if p.out != nil {
 			p.out.Seek(0)
 			p.out.Play()
 			p.syncNowPlaying(nil)
+			p.scheduleAutoFade()
 		}
 		return
 	}
@@ -550,6 +805,9 @@ func (p *player) fetchArtwork(rawURL string) ([]byte, error) {
 }
 
 func (p *player) cacheDir() string {
+	if p.cacheRootDir != "" {
+		return p.cacheRootDir
+	}
 	return audioCacheDir()
 }
 
@@ -578,14 +836,27 @@ func (p *player) cacheKey(t Track) string {
 }
 
 func (p *player) downloadTrack(ctx context.Context, gen int, t Track) (*os.File, error) {
-	dest := p.cachePath(p.cacheKey(t))
-	if fi, err := os.Stat(dest); err == nil && fi.Size() > 1024 {
+	key := p.cacheKey(t)
+	if err := p.waitForPrefetch(ctx, key); err != nil {
+		return nil, err
+	}
+	progress := func(frac float64) {
 		p.app.post(func() {
 			if p.gen == gen {
-				p.progress = 1
+				p.progress = frac
 				p.app.refresh()
 			}
 		})
+	}
+	return p.fetchTrackToCache(ctx, key, t, progress)
+}
+
+func (p *player) fetchTrackToCache(ctx context.Context, key string, t Track, progress func(float64)) (*os.File, error) {
+	dest := p.cachePath(key)
+	if fi, err := os.Stat(dest); err == nil && fi.Size() > 1024 {
+		if progress != nil {
+			progress(1)
+		}
 		return os.Open(dest)
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -656,12 +927,9 @@ func (p *player) downloadTrack(ctx context.Context, gen int, t Track) (*os.File,
 			if total > 0 && time.Since(last) > 120*time.Millisecond {
 				last = time.Now()
 				frac := float64(got) / float64(total)
-				p.app.post(func() {
-					if p.gen == gen {
-						p.progress = min(1, max(0, frac))
-						p.app.refresh()
-					}
-				})
+				if progress != nil {
+					progress(min(1, max(0, frac)))
+				}
 			}
 		}
 		if readErr == io.EOF {
@@ -681,11 +949,83 @@ func (p *player) downloadTrack(ctx context.Context, gen int, t Track) (*os.File,
 	if err := os.Rename(tmp, dest); err != nil {
 		return nil, err
 	}
-	p.app.post(func() {
-		if p.gen == gen {
-			p.progress = 1
-			p.app.refresh()
-		}
-	})
+	if progress != nil {
+		progress(1)
+	}
 	return os.Open(dest)
+}
+
+func (p *player) schedulePrefetch() {
+	next := p.nextIndex()
+	if next < 0 || next == p.at || next >= len(p.queue) {
+		return
+	}
+	track := p.queue[next]
+	if track.Cover != "" && p.app != nil {
+		p.app.requestArt(track.Cover)
+	}
+
+	key := p.cacheKey(track)
+	p.prefetchMu.Lock()
+	if job := p.prefetch; job != nil && job.key == key {
+		select {
+		case <-job.done:
+			if job.err == nil {
+				p.prefetchMu.Unlock()
+				return
+			}
+		default:
+			p.prefetchMu.Unlock()
+			return
+		}
+	}
+	if p.prefetch != nil {
+		p.prefetch.cancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	job := &prefetchJob{
+		track:  track,
+		key:    key,
+		cancel: cancel,
+		done:   make(chan struct{}),
+	}
+	p.prefetch = job
+	p.prefetchMu.Unlock()
+
+	go func() {
+		file, err := p.fetchTrackToCache(ctx, key, track, nil)
+		if file != nil {
+			file.Close()
+		}
+		job.err = err
+		close(job.done)
+	}()
+}
+
+func (p *player) waitForPrefetch(ctx context.Context, key string) error {
+	p.prefetchMu.Lock()
+	job := p.prefetch
+	p.prefetchMu.Unlock()
+	if job == nil || job.key != key {
+		return nil
+	}
+	select {
+	case <-job.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (p *player) cancelPrefetchExcept(track Track) {
+	if p.app == nil {
+		return
+	}
+	key := p.cacheKey(track)
+	p.prefetchMu.Lock()
+	job := p.prefetch
+	if job != nil && job.key != key {
+		job.cancel()
+	}
+	p.prefetchMu.Unlock()
 }

@@ -351,6 +351,7 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 				shuffle := a.iconButton(c, "shuffle", iconShuffle, "随机播放", pl.shuffle)
 				if shuffle.Clicked() {
 					pl.shuffle = !pl.shuffle
+					pl.scheduleAutoFade()
 					a.refresh()
 				}
 				prev := a.iconButton(c, "prev", iconPrev, "上一首", false)
@@ -387,6 +388,7 @@ func (a *app) playerBar(c *ui.Context, p palette) {
 				repeat := a.iconButton(c, "repeat", rep, repeatLabel(pl.repeat), pl.repeat != repeatOff)
 				if repeat.Clicked() {
 					pl.repeat = (pl.repeat + 1) % 3
+					pl.scheduleAutoFade()
 					a.refresh()
 				}
 			})
