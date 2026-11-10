@@ -2,5 +2,7 @@
 /.mygo/
 /freewave
 /dist/
+/site/.cloudflare/
+/site/.wrangler/
 .DS_Store
 mygo_windows_*.syso

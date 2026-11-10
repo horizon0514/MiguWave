@@ -4,6 +4,8 @@
 
 用 Go 和 [MyGo](https://github.com/egoist/mygo) 写的咪咕音乐桌面客户端。原生界面，Windows 与 macOS 共用一套代码，专注 `music.migu.cn` 曲库。
 
+官网：[music.colaorange.me](https://music.colaorange.me/) · 官网源码：[site/](site/)
+
 > 非咪咕官方客户端。接口来自咪咕网页端，可能随官方调整而失效。请使用自己的账号和会员权益，本应用不提供绕过付费墙或下载导出的能力。
 
 ## 界面预览
@@ -76,6 +78,7 @@ main.go              进程入口，只负责启动桌面应用
 internal/app         桌面界面、应用状态、播放调度、窗口与菜单栏 / 托盘
 internal/migu        咪咕 API 客户端、数据模型、授权与歌曲详情
 internal/lyrics      LRC / MRC 解析、歌词头部清洗与逐字时间轴
+site                 官网静态站点，部署到 Cloudflare Pages
 ```
 
 界面层只消费 `migu` 和 `lyrics` 暴露的类型与函数；网络接口、歌词格式处理不放在 UI 文件里。

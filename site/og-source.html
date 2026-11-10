@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+    body {
+      background: #fcf6f4;
+      color: #1b151d;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      position: relative;
+      width: 1200px;
+      height: 630px;
+      padding: 58px 64px;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse 55% 50% at 68% -5%, rgba(255, 174, 165, 0.55), transparent 70%),
+        radial-gradient(ellipse 45% 42% at 100% 55%, rgba(255, 138, 91, 0.25), transparent 73%),
+        linear-gradient(140deg, #fffaf7 0%, #fdf2ef 58%, #fcedea 100%);
+    }
+    .ring {
+      position: absolute;
+      width: 680px;
+      height: 680px;
+      top: -265px;
+      right: -105px;
+      border: 1.5px dashed rgba(233, 47, 89, 0.16);
+      border-radius: 50%;
+    }
+    .ring::before, .ring::after {
+      position: absolute;
+      border: 1px solid rgba(233, 47, 89, 0.08);
+      border-radius: 50%;
+      content: "";
+    }
+    .ring::before { inset: 100px; }
+    .ring::after { inset: 215px; }
+    .glow {
+      position: absolute;
+      width: 580px;
+      height: 580px;
+      right: 10px;
+      bottom: -350px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 92, 122, 0.28), transparent 68%);
+      filter: blur(24px);
+    }
+    .brand {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+    }
+    .mark {
+      display: grid;
+      width: 50px;
+      height: 50px;
+      place-items: center;
+      border-radius: 15px;
+      background: linear-gradient(145deg, #ff4f76, #ff8a5b);
+      box-shadow: 0 10px 26px rgba(233, 47, 89, 0.26);
+    }
+    .mark svg { width: 50px; height: 50px; }
+    .brand-name { font-size: 27px; font-weight: 760; letter-spacing: -0.04em; line-height: 1; }
+    .brand-sub { margin-top: 5px; color: #7d7184; font-size: 8px; font-weight: 700; letter-spacing: 0.22em; }
+    .copy { position: relative; z-index: 2; width: 535px; margin-top: 62px; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 14px;
+      border: 1px solid rgba(233, 47, 89, 0.19);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.6);
+      color: #8e5563;
+      font-size: 13px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #e92f59; }
+    h1 {
+      margin: 26px 0 0;
+      font-size: 78px;
+      font-weight: 780;
+      line-height: 1.05;
+      letter-spacing: -0.072em;
+    }
+    .accent {
+      background: linear-gradient(105deg, #e92f59 5%, #ff6b6f 50%, #ff9966 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .lede {
+      width: 470px;
+      margin: 26px 0 0;
+      color: #655b6b;
+      font-size: 19px;
+      line-height: 1.65;
+    }
+    .foot {
+      position: absolute;
+      z-index: 2;
+      left: 64px;
+      bottom: 43px;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      color: #7d7184;
+      font-size: 13px;
+    }
+    .foot strong { color: #524653; font-weight: 600; }
+    .divider { width: 22px; height: 1px; background: #d9c8cc; }
+    .shot {
+      position: absolute;
+      z-index: 1;
+      top: 174px;
+      right: -108px;
+      width: 808px;
+      padding: 0;
+      border: 1px solid rgba(41, 24, 34, 0.14);
+      border-radius: 17px;
+      overflow: hidden;
+      background: #f8f2f1;
+      box-shadow: 0 40px 90px rgba(47, 23, 35, 0.24);
+      transform: rotate(-2.1deg);
+    }
+    .bar {
+      display: flex;
+      height: 37px;
+      align-items: center;
+      padding: 0 14px;
+      border-bottom: 1px solid rgba(41, 24, 34, 0.09);
+      background: #f8f2f1;
+    }
+    .lights { display: flex; gap: 6px; }
+    .lights i { width: 8px; height: 8px; border-radius: 50%; background: #ff6059; }
+    .lights i:nth-child(2) { background: #ffbd2e; }
+    .lights i:nth-child(3) { background: #28c840; }
+    .title { margin-left: auto; margin-right: auto; color: #9b8c94; font-size: 10px; }
+    .shot img { display: block; width: 100%; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="ring"></div>
+    <div class="glow"></div>
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M18.5 38.5v-13M32 46V18M45.5 38.5v-13" fill="none" stroke="#fff" stroke-width="5.4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">miguwave</div>
+        <div class="brand-sub">MIGU MUSIC DESKTOP</div>
+      </div>
+    </div>
+
+    <div class="copy">
+      <div class="eyebrow"><span class="dot"></span>咪咕音乐 · 原生桌面客户端</div>
+      <h1>把咪咕音乐，<br><span class="accent">放进桌面。</span></h1>
+      <p class="lede">发现、搜索、排行榜、歌词和播放控制，都在一个轻快的窗口里。</p>
+    </div>
+
+    <div class="foot">
+      <strong>music.colaorange.me</strong>
+      <span class="divider"></span>
+      <span>macOS &amp; Windows</span>
+      <span class="divider"></span>
+      <span>免费下载</span>
+    </div>
+
+    <div class="shot">
+      <div class="bar">
+        <span class="lights"><i></i><i></i><i></i></span>
+        <span class="title">miguwave</span>
+      </div>
+      <img src="assets/home-1600.webp" alt="">
+    </div>
+  </div>
+</body>
+</html>
