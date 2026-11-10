@@ -288,7 +288,7 @@ func (a *app) menuBarView(c *ui.Context) {
 		a.menuBarBackdrop(c, cover, tint)
 		ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).
 			Padding(14, 22, 16, 22).AlignItems(ui.Center).Children(func() {
-			a.menuBarTopBar(c, p, pl)
+			a.menuBarTopBar(c)
 			if pl == nil || !pl.hasCurrent {
 				a.menuBarEmpty(c)
 				return
@@ -334,28 +334,8 @@ func (a *app) menuBarBackdrop(c *ui.Context, cover string, tint ui.Color) {
 		})
 }
 
-func (a *app) menuBarTopBar(c *ui.Context, p songColors, pl *player) {
+func (a *app) menuBarTopBar(c *ui.Context) {
 	ui.Row(c).Height(30).FillWidth().AlignItems(ui.Center).Children(func() {
-		if pl != nil && pl.hasCurrent {
-			status := "已暂停"
-			if pl.loading {
-				status = "正在载入"
-			} else if pl.playing {
-				status = "正在播放"
-			}
-			dotColor := songWhite.Alpha(0.32)
-			if pl.playing {
-				dotColor = p.tint.Mix(songWhite, 0.42)
-			}
-			ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
-				dot := ui.Box(c).Size(6, 6).Radius(999).Background(dotColor)
-				if pl.playing {
-					dot.Shadow(0, 0, 8, 0, dotColor.Alpha(0.7))
-				}
-				ui.Text(c, status).FontSize(10).FontWeight(620).LetterSpacing(0.6).
-					TextColor(songWhite.Alpha(0.54))
-			})
-		}
 		ui.Spacer(c)
 		ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
 			open := a.iconButton(c, "menu-open-main", iconExternal, "打开完整窗口", false)

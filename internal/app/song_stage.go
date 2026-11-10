@@ -55,7 +55,7 @@ func (a *app) songStage(c *ui.Context, p songColors, detail miguSongDetail, acti
 		drawStageTonearm(pt, r, p.tint, armAngle, playing)
 	})
 	stage.Children(func() {
-		a.songStageIdentity(c, p, detail.Track, padX, w, playing, same)
+		a.songStageIdentity(c, detail.Track, padX, w)
 		if same && a.pl.err != "" {
 			ui.Row(c).Absolute().Top(18).Left(padX).Right(padX).Justify(ui.Center).
 				PassThrough().Children(func() {
@@ -77,22 +77,10 @@ func (a *app) songStage(c *ui.Context, p songColors, detail miguSongDetail, acti
 	})
 }
 
-func (a *app) songStageIdentity(c *ui.Context, p songColors, track Track, padX, width float32, playing, same bool) {
-	status, dot := "待播放", songWhite.Alpha(0.26)
-	switch {
-	case same && playing:
-		status, dot = "正在播放", p.tint.Mix(songWhite, 0.35)
-	case same:
-		status, dot = "已暂停", p.tint.Mix(songWhite, 0.12)
-	}
+func (a *app) songStageIdentity(c *ui.Context, track Track, padX, width float32) {
 	meta := joinMeta(displayArtist(track.Artist), track.Album)
 	ui.Column(c).Absolute().Left(padX).Top(26).Width(min(float32(390), width*0.34)).
 		Gap(4).AlignItems(ui.Start).Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
-			ui.Box(c).Size(5, 5).Radius(999).Background(dot)
-			ui.Text(c, status).FontSize(9.5).FontWeight(680).LetterSpacing(1.1).
-				TextColor(songWhite.Alpha(0.42))
-		})
 		ui.Text(c, displayTitle(track.Title)).FontSize(23).FontWeight(760).
 			LetterSpacing(-0.5).SingleLine().TextColor(songWhite.Alpha(0.94))
 		if meta != "" {
