@@ -140,6 +140,7 @@ func TestSnapshots(t *testing.T) {
 	stage.songQueue = tracks
 	stage.songIndex = 1
 	stage.songDetail = song.songDetail
+	stage.songDetail.Cover = "snap://s-2"
 	stage.songCache[tracks[1].ID] = song.songDetail
 	seedSnapshotArt(t, stage)
 	save("song-stage", stage, false)

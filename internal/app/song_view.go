@@ -216,9 +216,14 @@ func (a *app) songPage(c *ui.Context, _ palette) {
 	root := ui.Box(c.Key("song-page")).Fill().Clip().Background(songInk).TextColor(songWhite)
 	root.Children(func() {
 		a.songBackdrop(c, cover, tint)
+		if a.songPane == songPaneStage {
+			a.songStagePage(c, p, detail)
+			a.songPaneTabs(c, layout, true)
+			return
+		}
 		ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Children(func() {
 			a.songTopBar(c)
-			a.songPaneTabs(c, layout)
+			a.songPaneTabs(c, layout, false)
 			ui.Row(c).Grow(1).MinHeight(0).
 				Padding(48, layout.sideX, 26, layout.sideX).Gap(layout.gap).
 				AlignItems(ui.Stretch).Children(func() {
@@ -226,6 +231,14 @@ func (a *app) songPage(c *ui.Context, _ palette) {
 				a.songRightPane(c, p, detail, h)
 			})
 		})
+	})
+}
+
+func (a *app) songStagePage(c *ui.Context, p songColors, detail miguSongDetail) {
+	active := a.songStageActive(detail)
+	ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Children(func() {
+		a.songTopBar(c)
+		a.songStage(c, p, detail, active)
 	})
 }
 
@@ -347,7 +360,7 @@ func (a *app) songTopBar(c *ui.Context) {
 		})
 }
 
-func (a *app) songPaneTabs(c *ui.Context, layout songLayout) {
+func (a *app) songPaneTabs(c *ui.Context, layout songLayout, centered bool) {
 	tabs := []struct {
 		pane  songPane
 		label string
@@ -356,8 +369,13 @@ func (a *app) songPaneTabs(c *ui.Context, layout songLayout) {
 		{songPaneStage, "律动"},
 		{songPaneQueue, "待播清单"},
 	}
-	ui.Row(c).Absolute().Top(17).Left(layout.rightX).Height(32).Gap(5).
-		AlignItems(ui.Center).Children(func() {
+	row := ui.Row(c).Absolute().Top(17).Height(32).Gap(5).AlignItems(ui.Center)
+	if centered {
+		row.Left(0).Right(0).Justify(ui.Center)
+	} else {
+		row.Left(layout.rightX)
+	}
+	row.Children(func() {
 		for _, tab := range tabs {
 			active := a.songPane == tab.pane
 			b := ui.ButtonBase(c).Key(fmt.Sprintf("song-tab-%d", tab.pane)).
@@ -383,6 +401,17 @@ func (a *app) songPaneTabs(c *ui.Context, layout songLayout) {
 			}
 		}
 	})
+}
+
+func (a *app) songStageActive(detail miguSongDetail) int {
+	if detail.PlainLyrics || len(detail.Lyrics) == 0 {
+		return -1
+	}
+	same := a.pl != nil && a.pl.hasCurrent && a.pl.current.ID == detail.Track.ID
+	if same {
+		return lyrics.IndexAt(detail.Lyrics, a.pl.position())
+	}
+	return 0
 }
 
 func (a *app) songLeftPane(c *ui.Context, p songColors, track Track, cover, album string, layout songLayout) {
@@ -683,15 +712,7 @@ func (a *app) songVolume(c *ui.Context) {
 }
 
 func (a *app) songRightPane(c *ui.Context, p songColors, detail miguSongDetail, h float32) {
-	active := -1
-	if !detail.PlainLyrics && len(detail.Lyrics) > 0 {
-		same := a.pl != nil && a.pl.hasCurrent && a.pl.current.ID == detail.Track.ID
-		if same {
-			active = lyrics.IndexAt(detail.Lyrics, a.pl.position())
-		} else {
-			active = 0
-		}
-	}
+	active := a.songStageActive(detail)
 	if active != a.lyricActive {
 		a.lyricActive = active
 	}
