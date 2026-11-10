@@ -9,7 +9,7 @@ Static landing page for [MiguWave](https://github.com/horizon0514/MiguWave), ser
 - `styles.css` — layout, responsive breakpoints and motion
 - `main.js` — mobile navigation, reveal animations and interface tabs
 - `assets/` — optimized WebP screenshots from the desktop app
-- `og.png` — social preview image
+- `og.<hash>.png` — content-hashed social preview image
 - `og-source.html` — 1200 × 630 social card source (`noindex`)
 - `_headers` — Cloudflare Pages security and caching headers
 - `robots.txt`, `sitemap.xml` — search engine metadata
@@ -59,4 +59,5 @@ site does not need to be updated for each release.
 
 ## Regenerating the social card
 
-Open `og-source.html` at a 1200 × 630 viewport and capture the page as `og.png`.
+Open `og-source.html` at a 1200 × 630 viewport and capture the page as a
+content-hashed `og.<hash>.png`, then update the social image meta tags.
