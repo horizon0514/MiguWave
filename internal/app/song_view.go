@@ -369,7 +369,7 @@ func (a *app) songPaneTabs(c *ui.Context, layout songLayout, centered bool) {
 		{songPaneStage, "律动"},
 		{songPaneQueue, "待播清单"},
 	}
-	row := ui.Row(c).Absolute().Top(17).Height(32).Gap(5).AlignItems(ui.Center)
+	row := ui.Row(c).Absolute().Top(17).Height(32).Gap(5).AlignItems(ui.Center).PassThrough()
 	if centered {
 		row.Left(0).Right(0).Justify(ui.Center)
 	} else {

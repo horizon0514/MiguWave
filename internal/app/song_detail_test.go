@@ -86,6 +86,32 @@ func TestSongStageRendersCurrentAndNext(t *testing.T) {
 	}
 }
 
+func TestSongStageCollapseButton(t *testing.T) {
+	track := sampleMiguTracks()[1]
+	a := testApp()
+	a.page = pageSong
+	a.songPane = songPaneLyrics
+	a.songFrom = pageHome
+	a.songTrack = track
+	a.songQueue = sampleMiguTracks()
+	a.songIndex = 1
+	a.songDetail = miguSongDetail{Track: track, Album: track.Album}
+
+	tt := ui.NewTester(a.view, 1240, 820)
+	if err := tt.Click("律动"); err != nil {
+		t.Fatal(err)
+	}
+	if a.songPane != songPaneStage {
+		t.Fatalf("stage tab left pane = %v, want stage", a.songPane)
+	}
+	if err := tt.Click("收起播放页"); err != nil {
+		t.Fatal(err)
+	}
+	if a.page != pageHome {
+		t.Fatalf("stage collapse left page = %v, want home", a.page)
+	}
+}
+
 func TestSongPageFollowsPlayerTrack(t *testing.T) {
 	a := testApp()
 	tracks := sampleMiguTracks()
