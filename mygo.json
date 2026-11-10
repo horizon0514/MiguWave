@@ -1,7 +1,7 @@
 {
   "name": "MiguWave",
   "identifier": "com.miguwave.player",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "out": "build",
   "macos": {
     "infoPlist": {
