@@ -32,7 +32,7 @@
 
 要求 macOS 12 或更高版本。
 
-1. 打开 `miguwave-0.1.5.dmg`。
+1. 打开 `miguwave-0.1.6.dmg`。
 2. 把「MiguWave」拖进「应用程序」。
 3. 首次启动时，如果 macOS 提示无法验证开发者，在 Finder 中右键应用并选择「打开」。
 
@@ -48,7 +48,7 @@ xattr -dr com.apple.quarantine /Applications/MiguWave.app
 
 要求 Windows 10 1809+ 或 Windows 11，以及 WebView2 Runtime（Windows 11 自带，旧系统可安装 Evergreen Runtime）。
 
-1. 运行 `miguwave-setup-0.1.5-amd64.exe`（Intel / AMD）或 `miguwave-setup-0.1.5-arm64.exe`（ARM64 设备）。
+1. 运行 `miguwave-setup-0.1.6-amd64.exe`（Intel / AMD）或 `miguwave-setup-0.1.6-arm64.exe`（ARM64 设备）。
 2. 安装到当前用户目录，不需要管理员权限。
 3. 当前构建未做代码签名，SmartScreen 提示时点「更多信息」→「仍要运行」。
 4. 如果缺少 WebView2，应用内登录页会提示无法打开；安装 Runtime 后重试即可，扫码和令牌导入不受影响。
